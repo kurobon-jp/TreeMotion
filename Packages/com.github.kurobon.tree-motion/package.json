@@ -1,0 +1,26 @@
+{
+  "name": "com.github.kurobon.tree-motion",
+  "displayName": "TreeMotion",
+  "version": "0.1.0",
+  "unity": "2022.1",
+  "description": "A virtualized, animated tree view for Unity uGUI.",
+  "author": {
+    "name": "kurobon",
+    "url": "https://github.com/kurobon-jp"
+  },
+  "keywords": [
+    "ui",
+    "tree",
+    "scroll",
+    "virtualization",
+    "animation"
+  ],
+  "dependencies": {},
+  "samples": [
+    {
+      "displayName": "TreeMotion Sample",
+      "description": "Nested groups with animated insert, remove, and move operations.",
+      "path": "Samples~/TreeMotion Sample"
+    }
+  ]
+}
