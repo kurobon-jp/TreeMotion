@@ -38,3 +38,6 @@ Assets/Samples.meta
 *.unitypackage
 *.app
 
+/TestResults.xml
+/BenchmarkResults.xml
+

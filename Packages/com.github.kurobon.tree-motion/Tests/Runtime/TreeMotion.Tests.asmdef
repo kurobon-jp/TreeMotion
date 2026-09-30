@@ -2,12 +2,15 @@
   "name": "TreeMotion.Tests",
   "rootNamespace": "TreeMotion.Tests",
   "references": [
-    "TreeMotion"
+    "TreeMotion",
+    "Unity.ugui"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"
   ],
-  "includePlatforms": [],
+  "includePlatforms": [
+    "Editor"
+  ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,

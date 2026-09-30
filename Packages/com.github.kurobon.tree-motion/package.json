@@ -15,11 +15,18 @@
     "virtualization",
     "animation"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "com.unity.ugui": "1.0.0"
+  },
   "samples": [
     {
-      "displayName": "TreeMotion Sample",
-      "description": "Nested groups with animated insert, remove, and move operations.",
+      "displayName": "Basic Tree Sample",
+      "description": "Minimal snapshot loading, prefab binding, pooling, and expand/collapse animation.",
+      "path": "Samples~/Basic Tree Sample"
+    },
+    {
+      "displayName": "Advanced TreeMotion Sample",
+      "description": "Nested group cards, structural editing, and pooled viewport rendering.",
       "path": "Samples~/TreeMotion Sample"
     }
   ]
