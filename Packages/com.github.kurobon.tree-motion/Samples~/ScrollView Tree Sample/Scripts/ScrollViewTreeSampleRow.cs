@@ -2,20 +2,17 @@ using System;
 using TMPro;
 using UnityEngine;
 
-namespace TreeMotion.Samples.Basic
+namespace TreeMotion.Samples.ScrollView
 {
-    public sealed class BasicTreeSampleRow : MonoBehaviour, ITreeMotionPresentationHandler
+    public sealed class ScrollViewTreeSampleRow : MonoBehaviour, ITreeMotionPresentationHandler
     {
         [SerializeField] private UnityEngine.UI.Button _button;
         [SerializeField] private UnityEngine.UI.Image _background;
         [SerializeField] private TextMeshProUGUI _label;
-        [SerializeField] private RectTransform _indentTarget;
-        [SerializeField, Min(0f)] private float _indentPerDepth = 24f;
+        [SerializeField] private TextMeshProUGUI _toggleLabel;
 
-        private static TMP_FontAsset _runtimeFont;
         private Action<int> _clicked;
         private int _id;
-        private float _baseLeftInset;
 
 
         public void Configure(UnityEngine.UI.Button button, UnityEngine.UI.Image background,
@@ -24,32 +21,26 @@ namespace TreeMotion.Samples.Basic
             _button = button;
             _background = background;
             _label = label;
-            _indentTarget = label.rectTransform;
         }
 
         private void Awake()
         {
-            if (_indentTarget == null)
-                _indentTarget = _label.rectTransform;
-            _baseLeftInset = _indentTarget.offsetMin.x;
             _button.onClick.AddListener(() => _clicked?.Invoke(_id));
         }
 
-        public void Bind(int id, string item, VisibleRow<int> row, Action<int> clicked)
+        public void Bind(int id, string item, VisibleRow<int> row, Action<int> clicked, bool isGroup = false)
         {
-            Debug.Log($"Bind {id} {item}");
             _id = id;
             _clicked = clicked;
-            var offsetMin = _indentTarget.offsetMin;
-            offsetMin.x = _baseLeftInset + row.Depth * _indentPerDepth;
-            _indentTarget.offsetMin = offsetMin;
-            _button.interactable = row.HasChildren;
-            _label.text = row.HasChildren
-                ? $"{(row.IsExpanded ? "笆ｼ" : "笆ｶ")}  {item}"
-                : item;
-            _background.color = row.HasChildren
-                ? new Color(0.80f, 0.88f, 0.88f, 1f)
-                : Color.white;
+            _button.interactable = isGroup;
+            _label.text = item;
+            _label.alignment = isGroup ? TextAlignmentOptions.Center : TextAlignmentOptions.MidlineLeft;
+            _label.fontStyle = isGroup ? FontStyles.Bold : FontStyles.Normal;
+            _label.rectTransform.offsetMin = new Vector2(isGroup ? 24f : 12f, 1f);
+            _label.rectTransform.offsetMax = new Vector2(isGroup ? -24f : -12f, -1f);
+            _toggleLabel.transform.parent.gameObject.SetActive(isGroup);
+            _toggleLabel.text = row.IsExpanded ? "v" : ">";
+
         }
 
         public void ResetPresentation() => transform.localScale = Vector3.one;

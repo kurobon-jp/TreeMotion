@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TreeMotion.Samples.Basic
 {
-    public sealed class BasicTreeSampleController : MonoBehaviour
+    public sealed class BasicTreeSampleController : MonoBehaviour, ITreeMotionDataSource<int, string>
     {
         [SerializeField] private TreeMotionScrollView _scrollView;
         [SerializeField] private BasicTreeSampleRow _itemPrefab;
@@ -18,23 +18,20 @@ namespace TreeMotion.Samples.Basic
 
         private void Start()
         {
-            _tree.LoadSnapshot(new[]
+            var nodes = new TreeNodeRecord<int, string>[100];
+            for (int i = 0; i < nodes.Length; i++)
             {
-                TreeNodeRecord<int, string>.Root(1, "First group", 0, true),
-                TreeNodeRecord<int, string>.Child(2, 1, "First item", 0),
-                // TreeNodeRecord<int, string>.Child(7, 1, "Second item", 0),
-                TreeNodeRecord<int, string>.Child(3, 1, "Nested group", 1, true),
-                TreeNodeRecord<int, string>.Child(4, 3, "Nested item", 0),
-                TreeNodeRecord<int, string>.Root(5, "Second group", 1, true),
-                TreeNodeRecord<int, string>.Child(6, 5, "Another item", 0),
-
-            });
-
-            _view = _scrollView.SetDataSource(_tree, _itemPrefab, 56f, Bind);
+                nodes[i] = new TreeNodeRecord<int, string>(i, $"{i}", siblingIndex: i, isExpanded: true);
+            }
+            _tree.LoadSnapshot(nodes);
+            _view = _scrollView.SetDataSource(_tree, this);
         }
 
-        private void Bind(BasicTreeSampleRow view, int id, string item, VisibleRow<int> row)
-            => view.Bind(id, item, row, Toggle);
+        public int GetItemType(int id, string item) => 0;
+        public GameObject GetItemPrefab(int itemType) => _itemPrefab.gameObject;
+        public float GetItemHeight(int itemType) => 56f;
+        public void Bind(GameObject view, int id, string item, VisibleRow<int> row)
+            => (view.GetComponent<BasicTreeSampleRow>()).Bind(id, item, row, Toggle);
 
         private void Toggle(int id)
         {

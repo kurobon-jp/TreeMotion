@@ -12,7 +12,7 @@ namespace TreeMotion
         private sealed class Node
         {
             internal readonly TId Id;
-            internal readonly List<TId> Children = new List<TId>();
+            internal readonly List<TId> Children = new();
             internal TItem Item;
             internal TId ParentId;
             internal bool HasParent;
@@ -29,14 +29,14 @@ namespace TreeMotion
         }
 
         private Dictionary<TId, Node> _nodes;
-        private List<TId> _roots = new List<TId>();
-        private List<VisibleRow<TId>> _visibleRows = new List<VisibleRow<TId>>();
+        private List<TId> _roots = new();
+        private List<VisibleRow<TId>> _visibleRows = new();
         private Dictionary<TId, int> _visibleIndices;
-        private readonly List<VisibleRow<TId>> _rowBuffer = new List<VisibleRow<TId>>();
-        private readonly List<TId> _idBuffer = new List<TId>();
+        private readonly List<VisibleRow<TId>> _rowBuffer = new();
+        private readonly List<TId> _idBuffer = new();
         private readonly HashSet<TId> _idSetBuffer;
-        private readonly Stack<TraversalFrame> _traversal = new Stack<TraversalFrame>();
-        private readonly Stack<TId> _idStack = new Stack<TId>();
+        private readonly Stack<TraversalFrame> _traversal = new();
+        private readonly Stack<TId> _idStack = new();
 
         public TreeStore() : this(null)
         {
@@ -54,7 +54,7 @@ namespace TreeMotion
         public int VisibleCount => _visibleRows.Count;
         public IEqualityComparer<TId> Comparer => _nodes.Comparer;
 
-        public TreeUpdate<TId, TItem> BeginUpdate() => new TreeUpdate<TId, TItem>(this);
+        public TreeUpdate<TId, TItem> BeginUpdate() => new(this);
 
         /// <summary>
         /// Atomically replaces the complete tree from flat, arbitrarily ordered records. This is
@@ -222,7 +222,7 @@ namespace TreeMotion
                         Move(mutation, changes);
                         break;
                     case TreeMutationKind.SetExpanded:
-                        SetExpanded(mutation.Id, mutation.BoolValue, changes);
+                        SetExpanded(mutation.Id, mutation.IsExpanded, changes);
                         break;
                     case TreeMutationKind.UpdateItem:
                         UpdateItem(mutation.Id, mutation.Item, changes);
@@ -291,7 +291,7 @@ namespace TreeMotion
                 var mutation = mutations[start + i];
                 _nodes.Add(mutation.Id,
                     new Node(mutation.Id, mutation.Item, mutation.ParentId, mutation.HasParent,
-                        mutation.BoolValue));
+                        mutation.IsExpanded));
             }
 
             siblings.InsertRange(childIndex, _idBuffer);
@@ -333,7 +333,7 @@ namespace TreeMotion
 
             var childIndex = NormalizeInsertionIndex(mutation.Index, siblings.Count);
             var node = new Node(mutation.Id, mutation.Item, mutation.ParentId, mutation.HasParent,
-                mutation.BoolValue);
+                mutation.IsExpanded);
             _nodes.Add(mutation.Id, node);
             siblings.Insert(childIndex, mutation.Id);
 
@@ -685,8 +685,8 @@ namespace TreeMotion
             _visibleRows[visibleIndex] = CreateVisibleRow(node, previous.Depth);
         }
 
-        private static VisibleRow<TId> CreateVisibleRow(Node node, int depth)
-            => new VisibleRow<TId>(node.Id, depth, node.Children.Count > 0, node.IsExpanded);
+        private static VisibleRow<TId> CreateVisibleRow(Node node, int depth) =>
+            new(node.Id, depth, node.Children.Count > 0, node.IsExpanded);
 
         private void RemoveNodeAndDescendants(TId id)
         {
@@ -740,22 +740,33 @@ namespace TreeMotion
         private static void SortAndValidateOrder(List<SnapshotOrder> items, string owner,
             IReadOnlyList<TreeNodeRecord<TId, TItem>> records)
         {
-            items.Sort((left, right) => left.SiblingIndex.CompareTo(right.SiblingIndex));
-            for (var i = 1; i < items.Count; i++)
+            var reserved = new HashSet<int>();
+            for (var i = 0; i < items.Count; i++)
             {
-                if (items[i - 1].SiblingIndex == items[i].SiblingIndex)
+                var index = items[i].SiblingIndex;
+                if (index.HasValue && !reserved.Add(index.Value))
                     throw new ArgumentException(
-                        $"Duplicate sibling index {items[i].SiblingIndex} under {owner}.",
+                        $"Duplicate sibling index {index.Value} under {owner}.",
                         nameof(records));
             }
+            var nextIndex = 0;
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i].SiblingIndex.HasValue)
+                    continue;
+                while (reserved.Contains(nextIndex))
+                    nextIndex++;
+                items[i] = new SnapshotOrder(items[i].Id, nextIndex++);
+            }
+            items.Sort((left, right) => left.SiblingIndex.Value.CompareTo(right.SiblingIndex.Value));
         }
 
         private readonly struct SnapshotOrder
         {
             internal readonly TId Id;
-            internal readonly int SiblingIndex;
+            internal readonly int? SiblingIndex;
 
-            internal SnapshotOrder(TId id, int siblingIndex)
+            internal SnapshotOrder(TId id, int? siblingIndex)
             {
                 Id = id;
                 SiblingIndex = siblingIndex;

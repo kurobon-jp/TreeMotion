@@ -6,7 +6,7 @@ namespace TreeMotion
     public sealed class TreeUpdate<TId, TItem>
     {
         private readonly TreeStore<TId, TItem> _store;
-        private readonly List<TreeMutation<TId, TItem>> _mutations = new List<TreeMutation<TId, TItem>>();
+        private readonly List<TreeMutation<TId, TItem>> _mutations = new();
         private bool _committed;
 
         internal TreeUpdate(TreeStore<TId, TItem> store)
@@ -99,10 +99,10 @@ namespace TreeMotion
         internal TItem Item { get; }
         internal int Index { get; }
         internal bool HasParent { get; }
-        internal bool BoolValue { get; }
+        internal bool IsExpanded { get; }
 
         private TreeMutation(TreeMutationKind kind, TId id, TId parentId, TId otherId,
-            TItem item, int index, bool hasParent, bool boolValue)
+            TItem item, int index, bool hasParent, bool isExpanded)
         {
             Kind = kind;
             Id = id;
@@ -111,40 +111,40 @@ namespace TreeMotion
             Item = item;
             Index = index;
             HasParent = hasParent;
-            BoolValue = boolValue;
+            IsExpanded = isExpanded;
         }
 
         internal static TreeMutation<TId, TItem> InsertRoot(TId id, TItem item, int index, bool isExpanded)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.Insert, id, default, default, item,
+            => new(TreeMutationKind.Insert, id, default, default, item,
                 index, false, isExpanded);
 
         internal static TreeMutation<TId, TItem> Insert(TId parentId, TId id, TItem item, int index,
             bool isExpanded)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.Insert, id, parentId, default, item,
+            => new(TreeMutationKind.Insert, id, parentId, default, item,
                 index, true, isExpanded);
 
         internal static TreeMutation<TId, TItem> Remove(TId id)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.Remove, id, default, default, default,
+            => new(TreeMutationKind.Remove, id, default, default, default,
                 -1, false, false);
 
         internal static TreeMutation<TId, TItem> MoveToRoot(TId id, int index)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.Move, id, default, default, default,
+            => new(TreeMutationKind.Move, id, default, default, default,
                 index, false, false);
 
         internal static TreeMutation<TId, TItem> Move(TId id, TId parentId, int index)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.Move, id, parentId, default, default,
+            => new(TreeMutationKind.Move, id, parentId, default, default,
                 index, true, false);
 
         internal static TreeMutation<TId, TItem> SetExpanded(TId id, bool isExpanded)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.SetExpanded, id, default, default,
+            => new(TreeMutationKind.SetExpanded, id, default, default,
                 default, -1, false, isExpanded);
 
         internal static TreeMutation<TId, TItem> UpdateItem(TId id, TItem item)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.UpdateItem, id, default, default, item,
+            => new(TreeMutationKind.UpdateItem, id, default, default, item,
                 -1, false, false);
 
         internal static TreeMutation<TId, TItem> SwapNodes(TId firstId, TId secondId)
-            => new TreeMutation<TId, TItem>(TreeMutationKind.SwapNodes, firstId, default,
+            => new(TreeMutationKind.SwapNodes, firstId, default,
                 secondId, default, -1, false, false);
     }
 }

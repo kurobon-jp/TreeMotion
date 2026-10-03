@@ -7,17 +7,89 @@ namespace TreeMotion.Tests
     public sealed class TreeStoreTests
     {
         [Test]
+        public void SnapshotRecord_ParentPresenceDefinesHierarchyIncludingZeroId()
+        {
+            var root = new TreeNodeRecord<int, string>(0, "root", isExpanded: true);
+            var child = new TreeNodeRecord<int, string>(1, "child", parentId: 0);
+            Assert.That(root.HasParent, Is.False);
+            Assert.That(child.HasParent, Is.True);
+            Assert.That(child.ParentId, Is.EqualTo(0));
+            var tree = new TreeStore<int, string>();
+            tree.LoadSnapshot(new[] { child, root });
+            AssertVisible(tree, (0, 0), (1, 1));
+        }
+
+        [Test]
+        public void SnapshotRecord_NullReferenceParentMeansRoot()
+        {
+            var root = new TreeNodeRecord<string, string>("root", "root", parentId: null,
+                isExpanded: true);
+            var child = new TreeNodeRecord<string, string>("child", "child", parentId: "root");
+            Assert.That(root.HasParent, Is.False);
+            Assert.That(child.HasParent, Is.True);
+            var tree = new TreeStore<string, string>();
+            tree.LoadSnapshot(new[] { child, root });
+            Assert.That(tree.RootCount, Is.EqualTo(1));
+            Assert.That(tree.GetChildId("root", 0), Is.EqualTo("child"));
+            Assert.Throws<ArgumentNullException>(() => new TreeNodeRecord<string, string>(null, "item"));
+        }
+
+        [Test]
+        public void LoadSnapshot_OmittedIndicesFollowEncounterOrderWithinEachParent()
+        {
+            var tree = new TreeStore<int, string>();
+            tree.LoadSnapshot(new[]
+            {
+                new TreeNodeRecord<int, string>(4, "first child", parentId: 1),
+                new TreeNodeRecord<int, string>(5, "first root", isExpanded: true),
+                new TreeNodeRecord<int, string>(6, "other child", parentId: 5),
+                new TreeNodeRecord<int, string>(2, "second child", parentId: 1),
+                new TreeNodeRecord<int, string>(1, "second root", isExpanded: true)
+            });
+
+            AssertVisible(tree, (5, 0), (6, 1), (1, 0), (4, 1), (2, 1));
+            Assert.That(new TreeNodeRecord<int, string>(10, "omitted").SiblingIndex, Is.Null);
+            Assert.That(new TreeNodeRecord<int, string>(10, "explicit", siblingIndex: 0).SiblingIndex, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void LoadSnapshot_MixedIndicesReserveExplicitValuesBeforeAssigningOmittedValues()
+        {
+            var tree = new TreeStore<int, string>();
+            tree.LoadSnapshot(new[]
+            {
+                new TreeNodeRecord<int, string>(1, "implicit", isExpanded: true),
+                new TreeNodeRecord<int, string>(4, "implicit child", parentId: 1),
+                new TreeNodeRecord<int, string>(2, "explicit zero", siblingIndex: 0),
+                new TreeNodeRecord<int, string>(5, "explicit child", parentId: 1, siblingIndex: 0),
+                new TreeNodeRecord<int, string>(3, "explicit gap", siblingIndex: 10),
+                new TreeNodeRecord<int, string>(6, "second implicit")
+            });
+
+            AssertVisible(tree, (2, 0), (1, 0), (5, 1), (4, 1), (6, 0), (3, 0));
+        }
+
+        [Test]
+        public void SnapshotRecord_RejectsExplicitNegativeIndices()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new TreeNodeRecord<int, string>(1, "root", siblingIndex: -1));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new TreeNodeRecord<int, string>(2, "child", parentId: 1, siblingIndex: -1));
+        }
+
+        [Test]
         public void LoadSnapshot_AcceptsUnorderedRecordsAndSortsEverySiblingSet()
         {
             var tree = new TreeStore<int, string>();
             var records = new[]
             {
-                TreeNodeRecord<int, string>.Child(4, 3, "nested", 0),
-                TreeNodeRecord<int, string>.Child(2, 1, "second", 1),
-                TreeNodeRecord<int, string>.Root(5, "root-b", 1, true),
-                TreeNodeRecord<int, string>.Child(3, 1, "group", 0, true),
-                TreeNodeRecord<int, string>.Root(1, "root-a", 0, true),
-                TreeNodeRecord<int, string>.Child(6, 5, "b-child", 0)
+                new TreeNodeRecord<int, string>(4, "nested", parentId: 3, siblingIndex: 0),
+                new TreeNodeRecord<int, string>(2, "second", parentId: 1, siblingIndex: 1),
+                new TreeNodeRecord<int, string>(5, "root-b", siblingIndex: 1, isExpanded: true),
+                new TreeNodeRecord<int, string>(3, "group", parentId: 1, siblingIndex: 0, isExpanded: true),
+                new TreeNodeRecord<int, string>(1, "root-a", siblingIndex: 0, isExpanded: true),
+                new TreeNodeRecord<int, string>(6, "b-child", parentId: 5, siblingIndex: 0)
             };
 
             tree.LoadSnapshot(records);
@@ -36,8 +108,8 @@ namespace TreeMotion.Tests
             var tree = new TreeStore<int, string>();
             tree.LoadSnapshot(new[]
             {
-                TreeNodeRecord<int, string>.Child(2, 1, "child", 0),
-                TreeNodeRecord<int, string>.Root(1, "root", 0, false)
+                new TreeNodeRecord<int, string>(2, "child", parentId: 1, siblingIndex: 0),
+                new TreeNodeRecord<int, string>(1, "root", siblingIndex: 0, isExpanded: false)
             });
 
             Assert.That(tree.Count, Is.EqualTo(2));
@@ -57,22 +129,22 @@ namespace TreeMotion.Tests
 
             Assert.Throws<ArgumentException>(() => tree.LoadSnapshot(new[]
             {
-                TreeNodeRecord<int, string>.Root(10, "duplicate-a", 0),
-                TreeNodeRecord<int, string>.Root(10, "duplicate-b", 1)
+                new TreeNodeRecord<int, string>(10, "duplicate-a", siblingIndex: 0),
+                new TreeNodeRecord<int, string>(10, "duplicate-b", siblingIndex: 1)
             }));
             Assert.Throws<ArgumentException>(() => tree.LoadSnapshot(new[]
             {
-                TreeNodeRecord<int, string>.Child(10, 999, "orphan", 0)
+                new TreeNodeRecord<int, string>(10, "orphan", parentId: 999, siblingIndex: 0)
             }));
             Assert.Throws<InvalidOperationException>(() => tree.LoadSnapshot(new[]
             {
-                TreeNodeRecord<int, string>.Child(10, 11, "cycle-a", 0),
-                TreeNodeRecord<int, string>.Child(11, 10, "cycle-b", 0)
+                new TreeNodeRecord<int, string>(10, "cycle-a", parentId: 11, siblingIndex: 0),
+                new TreeNodeRecord<int, string>(11, "cycle-b", parentId: 10, siblingIndex: 0)
             }));
             Assert.Throws<ArgumentException>(() => tree.LoadSnapshot(new[]
             {
-                TreeNodeRecord<int, string>.Root(10, "same-order-a", 0),
-                TreeNodeRecord<int, string>.Root(11, "same-order-b", 0)
+                new TreeNodeRecord<int, string>(10, "same-order-a", siblingIndex: 0),
+                new TreeNodeRecord<int, string>(11, "same-order-b", siblingIndex: 0)
             }));
 
             Assert.That(tree.Count, Is.EqualTo(4));
@@ -84,10 +156,9 @@ namespace TreeMotion.Tests
         {
             const int depth = 2000;
             var records = new TreeNodeRecord<int, int>[depth];
-            records[0] = TreeNodeRecord<int, int>.Root(0, 0, isExpanded: true);
+            records[0] = new TreeNodeRecord<int, int>(0, 0, isExpanded: true);
             for (var i = 1; i < depth; i++)
-                records[i] = TreeNodeRecord<int, int>.Child(i, i - 1, i,
-                    isExpanded: true);
+                records[i] = new TreeNodeRecord<int, int>(i, i, parentId: i - 1, isExpanded: true);
 
             var tree = new TreeStore<int, int>();
             tree.LoadSnapshot(records);
@@ -102,8 +173,8 @@ namespace TreeMotion.Tests
             var tree = new TreeStore<int, string>();
             tree.LoadSnapshot(new[]
             {
-                TreeNodeRecord<int, string>.Root(1, "root", 0, true),
-                TreeNodeRecord<int, string>.Child(2, 1, "existing", 0)
+                new TreeNodeRecord<int, string>(1, "root", siblingIndex: 0, isExpanded: true),
+                new TreeNodeRecord<int, string>(2, "existing", parentId: 1, siblingIndex: 0)
             });
 
             var insert = tree.BeginUpdate().Insert(1, 3, "inserted").Commit();

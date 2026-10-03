@@ -108,6 +108,23 @@ namespace TreeMotion
         public bool IsAnimating => _elapsed < _duration;
         public float Progress => _duration <= 0f ? 1f : Math.Min(1f, _elapsed / _duration);
 
+        // Responsive geometry changes immediately without restarting the transition clock.
+        // Preserve exiting tracks and their presentation progress until the transition ends.
+        internal void SnapGeometry(IReadOnlyList<TreeMotionLayout<TId>> layout)
+        {
+            ValidateLayout(layout);
+            BuildTargetIndex(layout);
+            for (var i = 0; i < _tracks.Count; i++)
+            {
+                var track = _tracks[i];
+                if (!_targetIndices.TryGetValue(track.Id, out var index)) continue;
+                var target = layout[index];
+                track.FromOffset = track.ToOffset = target.Offset;
+                track.FromSize = track.ToSize = target.Size;
+                _tracks[i] = track;
+            }
+        }
+
         public void Clear()
         {
             _tracks.Clear();
@@ -234,7 +251,13 @@ namespace TreeMotion
             RebuildTrackIndex();
 
             _elapsed = 0f;
-            _duration = duration;
+            _duration = 0f;
+            for (var i = 0; i < _tracks.Count; i++)
+                if (_tracks[i].Kind != TreeMotionAnimationKind.Stable)
+                {
+                    _duration = duration;
+                    break;
+                }
         }
 
         public void Advance(float deltaTime)

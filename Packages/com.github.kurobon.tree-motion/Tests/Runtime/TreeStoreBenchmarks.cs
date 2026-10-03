@@ -29,9 +29,9 @@ namespace TreeMotion.Tests
         {
             const int count = 100_000;
             var records = new TreeNodeRecord<int, int>[count];
-            records[0] = TreeNodeRecord<int, int>.Root(0, 0, isExpanded: true);
+            records[0] = new TreeNodeRecord<int, int>(0, 0, isExpanded: true);
             for (var i = 1; i < count; i++)
-                records[i] = TreeNodeRecord<int, int>.Child(i, 0, i, i - 1);
+                records[i] = new TreeNodeRecord<int, int>(i, i, parentId: 0, siblingIndex: i - 1);
 
             var tree = new TreeStore<int, int>();
             var stopwatch = Stopwatch.StartNew();

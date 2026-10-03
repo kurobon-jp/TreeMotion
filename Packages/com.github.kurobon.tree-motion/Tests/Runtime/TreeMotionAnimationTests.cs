@@ -7,6 +7,21 @@ namespace TreeMotion.Tests
     public sealed class TreeMotionAnimationTests
     {
         [Test]
+        public void Retarget_UnchangedLayoutCompletesImmediately()
+        {
+            var animation = new TreeMotionAnimation<int>();
+            var layout = new[] { new TreeMotionLayout<int>(1, 0f, 20f) };
+            animation.Snap(layout);
+            animation.Retarget(layout, 1f);
+            Assert.That(animation.IsAnimating, Is.False);
+            Assert.That(Value(animation, 1).Kind, Is.EqualTo(TreeMotionAnimationKind.Stable));
+            animation.Retarget(Array.Empty<TreeMotionLayout<int>>(), 1f);
+            Assert.That(animation.IsAnimating, Is.True);
+            animation.Advance(1f);
+            Assert.That(animation.IsAnimating, Is.False);
+        }
+
+        [Test]
         public void Retarget_AnimatesInsertMoveResizeAndRemoveByStableId()
         {
             var animation = new TreeMotionAnimation<int>();

@@ -20,6 +20,11 @@
   },
   "samples": [
     {
+      "displayName": "ScrollView Tree Sample",
+      "description": "TreeMotionScrollView with nested rows and random insert, move, update, swap, and remove animations.",
+      "path": "Samples~/ScrollView Tree Sample"
+    },
+    {
       "displayName": "Basic Tree Sample",
       "description": "Minimal snapshot loading, prefab binding, pooling, and expand/collapse animation.",
       "path": "Samples~/Basic Tree Sample"
