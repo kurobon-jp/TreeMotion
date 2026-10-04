@@ -35,6 +35,7 @@ namespace TreeMotion
             var factor = presentation.Role == TreeMotionPresentationRole.Entering ? presentation.Progress :
                 presentation.Role == TreeMotionPresentationRole.Exiting ? 1f - presentation.Progress : 1f;
             _canvasGroup.alpha = _initialAlpha * factor;
+            _canvasGroup.blocksRaycasts = !presentation.IsAnimating;
         }
 
 #if UNITY_EDITOR

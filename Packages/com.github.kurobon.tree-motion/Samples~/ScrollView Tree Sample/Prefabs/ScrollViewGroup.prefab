@@ -263,7 +263,6 @@ GameObject:
   - component: {fileID: 4643433512015025341}
   - component: {fileID: -6644672501790460134}
   - component: {fileID: 1086684183546252070}
-  - component: {fileID: 4808514502903064273}
   m_Layer: 5
   m_Name: ScrollViewGroup
   m_TagString: Untagged
@@ -389,19 +388,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6ab751448556214418c686b5120f3f78, type: 3}
   m_Name: 
   m_EditorClassIdentifier: TreeMotion::TreeMotion.TreeMotionFade
-  _canvasGroup: {fileID: 3860157147359228498}
---- !u!114 &4808514502903064273
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5411085385697683769}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fb82ff55a48eefb4ab848f92835bfe05, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: TreeMotion::TreeMotion.TreeMotionInteractionBlocker
   _canvasGroup: {fileID: 3860157147359228498}
 --- !u!1 &5825552820141391400
 GameObject:

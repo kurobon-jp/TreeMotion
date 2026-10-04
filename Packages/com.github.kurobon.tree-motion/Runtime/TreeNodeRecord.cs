@@ -36,14 +36,14 @@ namespace TreeMotion
 
         /// <summary>Creates a root record when no parent ID is supplied.</summary>
         public TreeNodeRecord(TId id, TItem item,
-            int? siblingIndex = null, bool isExpanded = false)
+            int? siblingIndex = null, bool isExpanded = true)
             : this(id, default, false, item, siblingIndex, isExpanded)
         {
         }
 
         /// <summary>Creates a child record; a null reference-type parent ID means no parent.</summary>
         public TreeNodeRecord(TId id, TItem item, TId parentId,
-            int? siblingIndex = null, bool isExpanded = false)
+            int? siblingIndex = null, bool isExpanded = true)
             : this(id, parentId, !(parentId is null), item, siblingIndex, isExpanded)
         {
         }

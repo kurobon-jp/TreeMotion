@@ -123,7 +123,11 @@ namespace TreeMotion.Tests
                 case "Apply": _controller.Apply(_tree.BeginUpdate().Commit()); break;
                 case "ApplyAsync": _controller.ApplyAsync(_tree.BeginUpdate().Remove(2).Commit()); break;
                 case "Reload": _controller.Reload(); break;
-                case "Dispose": UnityEngine.Object.DestroyImmediate(_scrollView); break;
+                case "Dispose":
+                    // EditMode does not guarantee MonoBehaviour.OnDestroy without a play-mode Awake.
+                    typeof(TreeMotionScrollView).GetMethod("OnDestroy",Fields).Invoke(_scrollView,null);
+                    UnityEngine.Object.DestroyImmediate(_scrollView);
+                    break;
             }
             Assert.That(previous.IsCanceled,Is.True);
         }
@@ -201,7 +205,6 @@ namespace TreeMotion.Tests
         }
         [Test] public void GroupOwnsHeaderAndFrame_ChildrenRemainContentSiblings()
         {
-            _source.Prefabs[0].AddComponent<TreeMotionInteractionBlocker>();
             _source.Groups.UnionWith(new[] {1,2}); Viewport(500f);
             Load(new TreeNodeRecord<int,string>(1,"Group",isExpanded:true),new TreeNodeRecord<int,string>(2,"Nested",parentId:1,isExpanded:true),new TreeNodeRecord<int,string>(3,"Item",parentId:2));
             var parent = _source.Views[1].GetComponent<TreeMotionGroupView>(); var nested = _source.Views[2].GetComponent<TreeMotionGroupView>(); var leaf = _source.Views[3];
@@ -213,7 +216,6 @@ namespace TreeMotion.Tests
             Assert.That(parent.transform.GetSiblingIndex(),Is.LessThan(nested.transform.GetSiblingIndex()));
             var height = _content.rect.height; _controller.Apply(_tree.BeginUpdate().SetExpanded(1,false).Commit());
             Assert.That(parent.ChildrenFrame.gameObject.activeSelf,Is.True); Assert.That(leaf.activeSelf,Is.True);
-            Assert.That(leaf.GetComponent<CanvasGroup>().blocksRaycasts,Is.False);
             Tick(); Assert.That(parent.ChildrenFrame.gameObject.activeSelf,Is.False); Assert.That(leaf.activeSelf,Is.False);
             Assert.That(_content.rect.height,Is.LessThan(height));
         }
@@ -241,6 +243,57 @@ namespace TreeMotion.Tests
             Scroll(75f); // Neither endpoint of the swap intersects this narrow middle viewport.
             _controller.Apply(_tree.BeginUpdate().SwapNodes(1,3).Commit()); Tick(0.125f);
             Assert.That(_source.Views[1].activeSelf,Is.True); Assert.That(_source.Views[3].activeSelf,Is.True);
+        }
+
+        [Test] public void Move_OnlyExplicitTargetAppearsAboveDisplacedItems_ThenRestoresOrder()
+        {
+            Viewport(500f);
+            Load(new TreeNodeRecord<int,string>(1,"One"),new TreeNodeRecord<int,string>(2,"Two"),new TreeNodeRecord<int,string>(3,"Three"));
+            _controller.Apply(_tree.BeginUpdate().MoveToRoot(3,0).Commit());
+            Assert.That(_source.Views[3].transform.GetSiblingIndex(),Is.GreaterThan(_source.Views[1].transform.GetSiblingIndex()));
+            Assert.That(_source.Views[3].transform.GetSiblingIndex(),Is.GreaterThan(_source.Views[2].transform.GetSiblingIndex()));
+            Tick();
+            Assert.That(_source.Views[3].transform.GetSiblingIndex(),Is.LessThan(_source.Views[1].transform.GetSiblingIndex()));
+        }
+
+        [Test] public void Swap_BothTargetsAppearAboveUnrelatedItem()
+        {
+            Viewport(500f);
+            Load(new TreeNodeRecord<int,string>(1,"One"),new TreeNodeRecord<int,string>(2,"Two"),new TreeNodeRecord<int,string>(3,"Three"));
+            _controller.Apply(_tree.BeginUpdate().SwapNodes(1,2).Commit());
+            foreach(var id in new[]{1,2})
+                Assert.That(_source.Views[id].transform.GetSiblingIndex(),Is.GreaterThan(_source.Views[3].transform.GetSiblingIndex()));
+            Tick();
+            Assert.That(_source.Views[1].transform.GetSiblingIndex(),Is.LessThan(_source.Views[3].transform.GetSiblingIndex()));
+        }
+
+        [Test] public void MoveGroup_BringsEntireSubtreeForwardWithFrameBehindChildren()
+        {
+            Viewport(500f); _source.Groups.Add(1);
+            Load(new TreeNodeRecord<int,string>(3,"Other"),new TreeNodeRecord<int,string>(1,"Group",isExpanded:true),new TreeNodeRecord<int,string>(2,"Child",parentId:1));
+            _controller.Apply(_tree.BeginUpdate().MoveToRoot(1,0).Commit());
+            var frame = _source.Views[1].transform;
+            var child = _source.Views[2].transform;
+            var other = _source.Views[3].transform;
+            Assert.That(frame.GetSiblingIndex(),Is.GreaterThan(other.GetSiblingIndex()));
+            Assert.That(child.GetSiblingIndex(),Is.GreaterThan(frame.GetSiblingIndex()));
+            Tick();
+            Assert.That(child.GetSiblingIndex(),Is.LessThan(other.GetSiblingIndex()));
+        }
+
+        [Test] public void HorizontalOnlyMove_BringsTargetForward()
+        {
+            Viewport(500f); _source.Groups.Add(1);
+            var rootGroup = _content.GetComponent<TreeMotionGroupView>();
+            rootGroup.Configure(_content,0f,rootGroup.ChildrenPadding);
+            Load(new TreeNodeRecord<int,string>(1,"Group",isExpanded:true),new TreeNodeRecord<int,string>(2,"Moving"),new TreeNodeRecord<int,string>(3,"Other"));
+            var top = _source.Views[2].GetComponent<RectTransform>().anchoredPosition.y;
+            _controller.Apply(_tree.BeginUpdate().Move(2,1).Commit());
+            Tick(.125f);
+            Assert.That(_source.Views[2].GetComponent<RectTransform>().anchoredPosition.y,Is.EqualTo(top).Within(.001f));
+            Assert.That(_source.Views[2].transform.GetSiblingIndex(),Is.GreaterThan(_source.Views[3].transform.GetSiblingIndex()));
+            Tick();
+            Assert.That(_source.Views[2].transform.GetSiblingIndex(),Is.LessThan(_source.Views[3].transform.GetSiblingIndex()));
         }
         [Test] public void MoveAcrossGroups_InterpolatesHorizontalInsetsAndKeepsIdentity()
         {
@@ -291,7 +344,7 @@ namespace TreeMotion.Tests
         {
             var prefab = _source.Prefabs[0];
             var canvas = prefab.AddComponent<CanvasGroup>(); canvas.alpha = 0.5f; canvas.interactable = false;
-            prefab.AddComponent<TreeMotionFade>(); prefab.AddComponent<TreeMotionInteractionBlocker>();
+            prefab.AddComponent<TreeMotionFade>();
             Load(new TreeNodeRecord<int,string>(1,"One")); var original = _source.Views[1];
             _controller.Apply(_tree.BeginUpdate().InsertRoot(2,"Two").Commit());
             var entering = _source.Views[2].GetComponent<CanvasGroup>();

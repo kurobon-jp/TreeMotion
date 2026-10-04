@@ -28,6 +28,11 @@ namespace TreeMotion
             Progress = progress;
             IsAnimating = isAnimating;
         }
+
+        public override string ToString()
+        {
+            return $"Kind:{Kind}, Role:{Role}, Progress:{Progress}, IsAnimating:{IsAnimating}";
+        }
     }
 
     public sealed class TreeMotionViewController<TId>
@@ -188,7 +193,7 @@ namespace TreeMotion
             private readonly Dictionary<TId, Layout> _byId;
             private readonly Dictionary<TId, Lease> _leased;
             private readonly Dictionary<TId, int> _nodeTypes;
-            private readonly HashSet<TId> _targets, _dirty, _renderIds;
+            private readonly HashSet<TId> _targets, _dirty, _renderIds, _foregroundRoots;
             private readonly List<Layout> _layouts = new();
             private readonly List<Layout> _groups = new();
             private readonly List<Layout> _render = new();
@@ -217,6 +222,7 @@ namespace TreeMotion
                 _targets = new HashSet<TId>(tree.Comparer);
                 _dirty = new HashSet<TId>(tree.Comparer);
                 _renderIds = new HashSet<TId>(tree.Comparer);
+                _foregroundRoots = new HashSet<TId>(tree.Comparer);
             }
 
             internal void Connect() => _host._scrollRect.onValueChanged.AddListener(OnScroll);
@@ -269,6 +275,7 @@ namespace TreeMotion
                 _leased.Clear();
                 _byId.Clear();
                 _dirty.Clear();
+                _foregroundRoots.Clear();
                 BuildLayout();
                 _vertical.Snap(_verticalTargets);
                 _horizontal.Snap(_horizontalTargets);
@@ -284,9 +291,17 @@ namespace TreeMotion
                 CancelCompletion();
                 if (changes.Count == 0) return;
                 ValidateData();
+                _foregroundRoots.Clear();
                 for (var i = 0; i < changes.Count; i++)
+                {
+                    var change = changes[i];
+                    if (change.Kind is TreeChangeKind.Move or TreeChangeKind.Swap)
+                        _foregroundRoots.Add(change.FirstId);
+                    if (change.Kind == TreeChangeKind.Swap)
+                        _foregroundRoots.Add(change.SecondId);
                     if (changes[i].Kind != TreeChangeKind.Remove && changes[i].Kind != TreeChangeKind.Swap)
                         _dirty.Add(changes[i].FirstId);
+                }
                 BuildLayout();
                 _heightFrom = _host._content.rect.height;
                 _vertical.Retarget(_verticalTargets, _host._animationDuration, changes);
@@ -427,6 +442,7 @@ namespace TreeMotion
                 RefreshVisibleViews();
                 if (!IsAnimating)
                 {
+                    _foregroundRoots.Clear();
                     _stale.Clear();
                     foreach (var pair in _byId)
                         if (!_targets.Contains(pair.Key))
@@ -500,8 +516,7 @@ namespace TreeMotion
                 {
                     layout.Foreground = false;
                     for (var ancestor = layout; ancestor != null; ancestor = ancestor.Parent)
-                        if (_vertical.TryGetValue(ancestor.Row.Id, out var value) &&
-                            (value.Kind == TreeMotionAnimationKind.Move || value.Kind == TreeMotionAnimationKind.Swap))
+                        if (IsAnimating && _foregroundRoots.Contains(ancestor.Row.Id))
                         {
                             layout.Foreground = true;
                             break;
@@ -512,8 +527,8 @@ namespace TreeMotion
                 {
                     var aExit = !_targets.Contains(a.Row.Id);
                     var bExit = !_targets.Contains(b.Row.Id);
-                    if (aExit != bExit) return aExit ? 1 : -1;
                     if (a.Foreground != b.Foreground) return a.Foreground ? 1 : -1;
+                    if (aExit != bExit) return aExit ? 1 : -1;
                     return a.Order.CompareTo(b.Order);
                 });
                 _stale.Clear();
@@ -614,6 +629,7 @@ namespace TreeMotion
                 _all.Clear();
                 _leased.Clear();
                 _available.Clear();
+                _foregroundRoots.Clear();
             }
         }
     }

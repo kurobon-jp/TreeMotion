@@ -125,7 +125,6 @@ GameObject:
   - component: {fileID: 173176962644517432}
   - component: {fileID: 8754423697514450236}
   - component: {fileID: 6996376547007993462}
-  - component: {fileID: 4111193078186228706}
   - component: {fileID: 9154881040873802755}
   m_Layer: 5
   m_Name: ScrollViewNestedGroup
@@ -236,19 +235,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6ab751448556214418c686b5120f3f78, type: 3}
   m_Name: 
   m_EditorClassIdentifier: TreeMotion::TreeMotion.TreeMotionFade
-  _canvasGroup: {fileID: 8754423697514450236}
---- !u!114 &4111193078186228706
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 792424295014533066}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fb82ff55a48eefb4ab848f92835bfe05, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: TreeMotion::TreeMotion.TreeMotionInteractionBlocker
   _canvasGroup: {fileID: 8754423697514450236}
 --- !u!114 &9154881040873802755
 MonoBehaviour:

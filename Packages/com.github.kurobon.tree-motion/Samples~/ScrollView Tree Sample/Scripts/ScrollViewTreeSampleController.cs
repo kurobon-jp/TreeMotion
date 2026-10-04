@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -7,22 +6,22 @@ using UnityEngine;
 namespace TreeMotion.Samples.ScrollView
 {
     // TreeMotionScrollView owns all layout, pooling, culling and animation.
-    public sealed class ScrollViewTreeSampleController : MonoBehaviour, ITreeMotionDataSource<int, string>
+    public sealed class ScrollViewTreeSampleController : MonoBehaviour, ITreeMotionDataSource<int, SampleItem>
     {
         [SerializeField] private TreeMotionScrollView _scrollView;
         [SerializeField] private ScrollViewTreeSampleRow _itemPrefab;
         [SerializeField] private ScrollViewTreeSampleRow _alternateItemPrefab;
         [SerializeField] private TreeMotionGroupView _groupPrefab;
         [SerializeField] private TreeMotionGroupView _nestedGroupPrefab;
-        private readonly HashSet<int> _groupIds = new() { 1, 5, 7 };
+
+        [SerializeField, Min(0f)] private float _openingHold = 2f;
+        [SerializeField, Min(0f)] private float _beatDuration = 0.5f;
+        [SerializeField, Min(0f)] private float _loopHold = 2f;
+
         [SerializeField] private bool _animateChanges = true;
 
-        private readonly TreeStore<int, string> _tree = new();
+        private readonly TreeStore<int, SampleItem> _tree = new();
         private TreeMotionViewController<int> _view;
-        [SerializeField, Min(0f)] private float _openingHold = 2f;
-        [SerializeField, Min(0f)] private float _beatDuration = 0.9f;
-        [SerializeField, Min(0f)] private float _loopHold = 2f;
-        [SerializeField] private TMPro.TMP_Text _caption;
         private CancellationTokenSource _showcaseCancellation;
 
         public void Configure(TreeMotionScrollView scrollView, ScrollViewTreeSampleRow itemPrefab)
@@ -39,107 +38,78 @@ namespace TreeMotion.Samples.ScrollView
                 StartShowcase();
         }
 
-        public int GetItemType(int id, string item)
-            => _groupIds.Contains(id) ? (id == 7 ? 3 : 2)
-                : item.StartsWith("Expanded card ·") ? 4 : (id > 10 && id % 2 != 0 ? 1 : 0);
+        private void OnDestroy()
+        {
+            _showcaseCancellation?.Cancel();
+        }
+
+        public int GetItemType(int id, SampleItem item) => (int)item.Type;
 
         public GameObject GetItemPrefab(int itemType)
         {
-            switch (itemType)
+            switch ((SampleItemType)itemType)
             {
-                case 0: return _itemPrefab.gameObject;
-                case 1: return _alternateItemPrefab.gameObject;
-                case 2: return _groupPrefab.gameObject;
-                case 3: return _nestedGroupPrefab.gameObject;
-                case 4: return _alternateItemPrefab.gameObject;
-                default: throw new System.ArgumentOutOfRangeException(nameof(itemType));
+                case SampleItemType.Item: return _itemPrefab.gameObject;
+                case SampleItemType.Card: return _alternateItemPrefab.gameObject;
+                case SampleItemType.Group: return _groupPrefab.gameObject;
+                case SampleItemType.NestedGroup: return _nestedGroupPrefab.gameObject;
+                case SampleItemType.ExpandedCard: return _alternateItemPrefab.gameObject;
+                default: throw new ArgumentOutOfRangeException(nameof(itemType));
             }
         }
 
-        public float GetItemHeight(int itemType) =>
-            itemType == 4 ? 80f : itemType >= 2 ? 20f : itemType == 1 ? 40f : 32f;
-
-        public void Bind(GameObject view, int id, string item, VisibleRow<int> row)
+        public float GetItemHeight(int itemType) => (SampleItemType)itemType switch
         {
-            view.GetComponent<ScrollViewTreeSampleRow>().Bind(id, item, row, Toggle, _groupIds.Contains(id));
+            SampleItemType.Item => 32f,
+            SampleItemType.Card => 40f,
+            SampleItemType.ExpandedCard => 80f,
+            // Group height is calculated from its ChildrenFrame and children by TreeMotion.
+            _ => throw new ArgumentOutOfRangeException(nameof(itemType))
+        };
+
+        public void Bind(GameObject view, int id, SampleItem item, VisibleRow<int> row)
+        {
+            var isGroup = item.Type == SampleItemType.Group || item.Type == SampleItemType.NestedGroup;
+            view.GetComponent<ScrollViewTreeSampleRow>().Bind(id, item.Label, row, Toggle, isGroup);
         }
 
         private void Toggle(int id)
         {
-            if (_showcaseCancellation != null)
-            {
-                StopShowcase();
-                SetCaption("Manual control · Restart Showcase to replay");
-            }
-
+            _showcaseCancellation?.Cancel();
             if (_tree.GetChildCount(id) > 0)
                 _view.Apply(_tree.BeginUpdate().SetExpanded(id, !_tree.IsExpanded(id)).Commit());
-        }
-
-        [ContextMenu("Restart Showcase")]
-        public void RestartShowcase()
-        {
-            if (!Application.isPlaying || _view == null) return;
-            StopShowcase();
-            _tree.LoadSnapshot(ScrollViewShowcaseSequence.InitialSnapshot());
-            _view.Reload();
-            if (_animateChanges) StartShowcase();
-            else SetCaption("Manual control");
-        }
-
-        private void OnDisable() => StopShowcase();
-        private void OnDestroy() => StopShowcase();
-
-        private void StopShowcase()
-        {
-            var cancellation = _showcaseCancellation;
-            _showcaseCancellation = null;
-            cancellation?.Cancel();
         }
 
         // Unity event entry points cannot await a Task; observe cancellation and failures here.
         private async void StartShowcase()
         {
-            StopShowcase();
-            var cancellation = new CancellationTokenSource();
-            _showcaseCancellation = cancellation;
             try
             {
-                await DemonstrateChanges(cancellation.Token);
+                _showcaseCancellation?.Cancel();
+                _showcaseCancellation = new CancellationTokenSource();
+                await DemonstrateChanges(_showcaseCancellation.Token);
             }
-            catch (OperationCanceledException) { }
-            catch (Exception error) { Debug.LogException(error, this); }
-            finally
+            catch (OperationCanceledException)
             {
-                if (ReferenceEquals(_showcaseCancellation, cancellation))
-                    _showcaseCancellation = null;
-                cancellation.Dispose();
             }
-        }
-
-        private void SetCaption(string text)
-        {
-            if (_caption != null) _caption.text = text;
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         private async Task DemonstrateChanges(CancellationToken cancellationToken)
         {
-            SetCaption("TreeMotion · Animated hierarchy");
             await Task.Delay(TimeSpan.FromSeconds(_openingHold), cancellationToken);
             while (true)
             {
                 for (var step = 0; step < ScrollViewShowcaseSequence.Captions.Length; step++)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    SetCaption(ScrollViewShowcaseSequence.Captions[step]);
-                    await Task.Yield();
                     await _view.ApplyAsync(ScrollViewShowcaseSequence.ApplyStep(_tree, step), cancellationToken);
                     // Finish the transition before holding a readable, settled frame.
                     await Task.Delay(TimeSpan.FromSeconds(_beatDuration), cancellationToken);
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
-                SetCaption("TreeMotion · Animated hierarchy");
                 await Task.Delay(TimeSpan.FromSeconds(_loopHold), cancellationToken);
             }
         }

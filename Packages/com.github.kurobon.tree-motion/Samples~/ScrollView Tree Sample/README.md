@@ -28,7 +28,7 @@ source; an older sequence cannot continue into the new take. Cancellation is han
 entry point, while unexpected failures are logged.
 
 `ScrollViewTreeSampleController` loads unordered snapshot records, binds the item prefab,
-and forwards committed changes through `TreeMotionViewController.Apply`. It implements `ITreeMotionDataSource<int, string>` to select
+and awaits committed changes through `TreeMotionViewController.ApplyAsync`. It implements `ITreeMotionDataSource<int, SampleItem>` to select
 ItemType, GameObject prefab and height and to bind the concrete View. Parent Group settings own spacing.
 `TreeMotionScrollView` owns layout, viewport culling, prefab pooling, content sizing, and animation.
 The row component is an ordinary MonoBehaviour with an optional presentation handler. It owns
@@ -37,11 +37,18 @@ and TreeMotionInteractionBlocker for fade and interaction rules. The scroll view
 owns hierarchy indentation and group-frame geometry.
 
 The scene uses whole Group prefabs containing Header and ChildrenFrame. Ordinary and nested
-Group types select separate prefabs; newly inserted odd-ID Items select a purple, taller alternate
-Item prefab. The expanded card uses the same alternate prefab in a separate ItemType with an
+Group types select separate prefabs. Each `SampleItem` explicitly stores its `Label` and
+`SampleItemType`: Item, Card, Group, NestedGroup, or ExpandedCard. IDs identify nodes only;
+neither ID values nor label text determine the prefab or height. Inserted Cards select the
+alternate Item prefab. The expanded card uses the same alternate prefab in a separate ItemType with an
 80-pixel height (normally 40). Update keeps its node ID and animates its height and surrounding
 layout; changing ItemType exchanges the pooled view. A label-only Update does not change layout.
 Pools are separated by type. Empty Groups retain their Group appearance in manual operation.
+
+Update replaces the item's data with a new `SampleItem`, changing Card to ExpandedCard and back.
+The data is immutable so changes go through `UpdateItem` instead of silently mutating stored items.
+Leaf heights are 32, 40, and 80 pixels respectively. Group height is calculated by TreeMotion from
+ChildrenFrame and children; the data source does not return a placeholder height for Group types.
 
 The showcase only moves nodes into explicitly defined Groups and never promotes arbitrary Items.
 The renderer does not infer Group identity from child count. Header and ChildrenFrame

@@ -85,9 +85,8 @@ namespace TreeMotion
             internal bool HasTarget;
         }
 
-        private readonly List<Track> _tracks = new List<Track>();
-        private readonly List<TreeMotionAnimationValue<TId>> _current =
-            new List<TreeMotionAnimationValue<TId>>();
+        private readonly List<Track> _tracks = new();
+        private readonly List<TreeMotionAnimationValue<TId>> _current = new();
         private readonly Dictionary<TId, int> _targetIndices;
         private readonly Dictionary<TId, int> _trackIndices;
         private readonly HashSet<TId> _sourceIds;
@@ -385,7 +384,7 @@ namespace TreeMotion
         }
 
         private static TreeMotionAnimationValue<TId> Evaluate(Track track, float progress)
-            => new TreeMotionAnimationValue<TId>(track.Id,
+            => new(track.Id,
                 Lerp(track.FromOffset, track.ToOffset, progress),
                 Lerp(track.FromSize, track.ToSize, progress),
                 Lerp(track.FromProgress, track.ToProgress, progress), track.Kind);
