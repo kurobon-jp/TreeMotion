@@ -31,6 +31,9 @@ https://github.com/kurobon-jp/TreeMotion.git?path=Packages/com.github.kurobon.tr
 
 ## ScrollViewの構成
 
+Hierarchyの **UI (Canvas) → Tree Motion → Scroll View** から、参照設定済みのテンプレートを作成できます。
+Item／GroupのPrefabとAdapterは別途用意します。
+
 ```text
 ScrollView                  ScrollRect + TreeMotionScrollView
 └─ Viewport                 RectTransform + ViewportのMask

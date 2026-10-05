@@ -3,6 +3,7 @@
   "rootNamespace": "TreeMotion.Tests",
   "references": [
     "TreeMotion",
+    "TreeMotion.Editor",
     "Unity.ugui"
   ],
   "optionalUnityReferences": [

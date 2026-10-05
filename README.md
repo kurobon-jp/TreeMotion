@@ -31,6 +31,9 @@ https://github.com/kurobon-jp/TreeMotion.git?path=Packages/com.github.kurobon.tr
 
 ## Set up a ScrollView
 
+Choose **UI (Canvas) → Tree Motion → Scroll View** in the Hierarchy context menu to create a configured template.
+Creation supports Undo. Supply your Item/Group prefabs and Adapter separately.
+
 ```text
 ScrollView                  ScrollRect + TreeMotionScrollView
 └─ Viewport                 RectTransform + viewport mask

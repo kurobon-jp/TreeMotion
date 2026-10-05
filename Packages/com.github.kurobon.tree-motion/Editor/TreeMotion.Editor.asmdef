@@ -2,7 +2,8 @@
   "name": "TreeMotion.Editor",
   "rootNamespace": "TreeMotion.Editor",
   "references": [
-    "TreeMotion"
+    "TreeMotion",
+    "Unity.ugui"
   ],
   "includePlatforms": [
     "Editor"
