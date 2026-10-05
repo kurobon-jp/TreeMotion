@@ -384,11 +384,11 @@ namespace TreeMotion
             return t * t * (3f - 2f * t);
         }
 
-        private static TreeMotionAnimationValue<TId> Evaluate(Track track, float progress)
+        private TreeMotionAnimationValue<TId> Evaluate(Track track, float progress)
             => new(track.Id,
                 Lerp(track.FromOffset, track.ToOffset, progress),
                 Lerp(track.FromSize, track.ToSize, progress),
-                Lerp(track.FromProgress, track.ToProgress, progress), track.Kind);
+                Lerp(track.FromProgress, track.ToProgress, Progress), track.Kind);
 
         private static float Lerp(float from, float to, float progress)
             => from + (to - from) * progress;

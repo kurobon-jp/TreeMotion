@@ -30,8 +30,8 @@ namespace TreeMotion.Samples.ScrollView
             {
                 case 0: update.Expanded(1, false); break;
                 case 1: update.Expanded(1, true); break;
-                case 2: update.SwapNodes(5, 11); break;
-                case 3: update.SwapNodes(5, 11); break;
+                case 2: update.Swap(5, 11); break;
+                case 3: update.Swap(5, 11); break;
                 case 4: update.Move(8, 1, 1); break;
                 case 5: update.Move(8, 6, 1); break;
                 case 6:
@@ -39,17 +39,17 @@ namespace TreeMotion.Samples.ScrollView
                         .Insert(1, newCardOffset + 1, new SampleItem("New card · A", SampleItemType.Card, 40f), 0)
                         .Insert(1, newCardOffset + 2, new SampleItem("New card · B", SampleItemType.Card, 40f), 1)
                         .Insert(1, newCardOffset + 3, new SampleItem("New card · C", SampleItemType.Card, 40f), 2); break;
-                case 7: update.SwapNodes(3, 10); break;
+                case 7: update.Swap(3, 10); break;
                 case 8:
                     update.Update(newCardOffset + 2,
-                        new SampleItem("Resized card · Same identity", SampleItemType.Card, 80f)); break;
+                        new SampleItem("Resized\nNew card · B", SampleItemType.Card, 80f)); break;
                 case 9: update.Update(newCardOffset + 2, new SampleItem("New card · B", SampleItemType.Card)); break;
                 case 10:
                     update
                         .Remove(newCardOffset + 1)
                         .Remove(newCardOffset + 2)
                         .Remove(newCardOffset + 3); break;
-                case 11: update.SwapNodes(3, 10); break;
+                case 11: update.Swap(3, 10); break;
                 default: throw new ArgumentOutOfRangeException(nameof(step));
             }
 

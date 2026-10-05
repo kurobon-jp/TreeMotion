@@ -100,7 +100,7 @@ namespace TreeMotion.Tests
             var records = new TreeNodeRecord<int,string>[itemCount];
             for(var i=0;i<records.Length;i++) records[i]=new TreeNodeRecord<int,string>(i,"Item");
             Load(records);
-            _binding.Apply(_tree.BeginUpdate().SwapNodes(0,itemCount-1).Commit(),duration:10f);
+            _binding.Apply(_tree.BeginUpdate().Swap(0,itemCount-1).Commit(),duration:10f);
             var driver=typeof(TreeMotionScrollView).GetField("_driver",Fields).GetValue(_scrollView);
             var tick=(Action<float>)Delegate.CreateDelegate(typeof(Action<float>),driver,driver.GetType().GetMethod("Tick"));
             for(var i=0;i<100;i++) tick(.001f);
@@ -343,6 +343,37 @@ namespace TreeMotion.Tests
             _adapter.Types[1] = 0; _binding.Apply(_tree.BeginUpdate().Update(1,"Again").Commit());
             Assert.That(_adapter.Views[1],Is.SameAs(original));
         }
+        [Test] public void PresentationCause_DistinguishesInsertRemoveFromExpandCollapse()
+        {
+            _adapter.Groups.UnionWith(new[] { 1, 2 });
+            Viewport(500f);
+            Load(new TreeNodeRecord<int,string>(1,"Group",isExpanded:true),
+                new TreeNodeRecord<int,string>(2,"Nested",parentId:1,isExpanded:true),
+                new TreeNodeRecord<int,string>(3,"Child",parentId:2));
+            _binding.Apply(_tree.BeginUpdate().Expanded(1,false).Commit());
+            var child = _adapter.Views[3].GetComponent<TestTreeMotionItemView>();
+            Assert.That(child.Presentation.Role, Is.EqualTo(TreeMotionPresentationRole.Exiting));
+            Assert.That(child.Presentation.Cause, Is.EqualTo(TreeChangeKind.Collapse));
+            Tick();
+            _binding.Apply(_tree.BeginUpdate().Expanded(1,true).Commit());
+            child = _adapter.Views[3].GetComponent<TestTreeMotionItemView>();
+            Assert.That(child.Presentation.Role, Is.EqualTo(TreeMotionPresentationRole.Entering));
+            Assert.That(child.Presentation.Cause, Is.EqualTo(TreeChangeKind.Expand));
+            Tick(0.05f);
+            _binding.Apply(_tree.BeginUpdate().InsertRoot(4,"Other").Commit());
+            Assert.That(child.Presentation.Cause, Is.EqualTo(TreeChangeKind.Expand));
+            Tick();
+            Assert.That(child.Presentation.Cause, Is.EqualTo(null));
+            _binding.Apply(_tree.BeginUpdate().Remove(2).Commit());
+            Assert.That(child.Presentation.Role, Is.EqualTo(TreeMotionPresentationRole.Exiting));
+            Assert.That(child.Presentation.Cause, Is.EqualTo(TreeChangeKind.Remove));
+            Tick();
+            _binding.Apply(_tree.BeginUpdate().Insert(1,5,"New child").Commit());
+            var added = _adapter.Views[5].GetComponent<TestTreeMotionItemView>();
+            Assert.That(added.Presentation.Role, Is.EqualTo(TreeMotionPresentationRole.Entering));
+            Assert.That(added.Presentation.Cause, Is.EqualTo(TreeChangeKind.Insert));
+        }
+
         [Test] public void EmptyGroup_RetainsGroupPrefabAndHidesChildrenFrame()
         {
             _adapter.Groups.Add(1); Load(new TreeNodeRecord<int,string>(1,"Empty",isExpanded:true));
@@ -382,7 +413,7 @@ namespace TreeMotion.Tests
         {
             Load(new TreeNodeRecord<int,string>(1,"One"),new TreeNodeRecord<int,string>(2,"Two"));
             var first = _adapter.Views[1].GetComponent<TestTreeMotionItemView>(); var second = _adapter.Views[2].GetComponent<TestTreeMotionItemView>();
-            _binding.Apply(_tree.BeginUpdate().SwapNodes(1,2).Commit());
+            _binding.Apply(_tree.BeginUpdate().Swap(1,2).Commit());
             Assert.That(_adapter.Binds[1],Is.EqualTo(1)); Assert.That(_adapter.Binds[2],Is.EqualTo(1));
             Assert.That(first.Presentation.Kind,Is.EqualTo(TreeMotionAnimationKind.Swap)); Assert.That(second.Presentation.Kind,Is.EqualTo(TreeMotionAnimationKind.Swap));
         }
@@ -390,7 +421,7 @@ namespace TreeMotion.Tests
         {
             Viewport(50f); Load(new TreeNodeRecord<int,string>(1,"One"),new TreeNodeRecord<int,string>(2,"Two"),new TreeNodeRecord<int,string>(3,"Three"));
             Scroll(75f); // Neither endpoint of the swap intersects this narrow middle viewport.
-            _binding.Apply(_tree.BeginUpdate().SwapNodes(1,3).Commit()); Tick(0.125f);
+            _binding.Apply(_tree.BeginUpdate().Swap(1,3).Commit()); Tick(0.125f);
             Assert.That(_adapter.Views[1].activeSelf,Is.True); Assert.That(_adapter.Views[3].activeSelf,Is.True);
         }
 
@@ -409,7 +440,7 @@ namespace TreeMotion.Tests
         {
             Viewport(500f);
             Load(new TreeNodeRecord<int,string>(1,"One"),new TreeNodeRecord<int,string>(2,"Two"),new TreeNodeRecord<int,string>(3,"Three"));
-            _binding.Apply(_tree.BeginUpdate().SwapNodes(1,2).Commit());
+            _binding.Apply(_tree.BeginUpdate().Swap(1,2).Commit());
             foreach(var id in new[]{1,2})
                 Assert.That(_adapter.Views[id].transform.GetSiblingIndex(),Is.GreaterThan(_adapter.Views[3].transform.GetSiblingIndex()));
             Tick();
@@ -552,7 +583,7 @@ namespace TreeMotion.Tests
             Tick(); _tree.LoadSnapshot(new[]{new TreeNodeRecord<int,string>(2,"Two")}); _binding.Reload();
             Assert.That(_adapter.Views[2],Is.SameAs(view));
             foreach(var handler in view.GetComponents<TestTreeMotionItemView>())
-            { Assert.That(handler.Resets,Is.GreaterThanOrEqualTo(3)); Assert.That(handler.Presentation.Role,Is.EqualTo(TreeMotionPresentationRole.Current)); }
+            { Assert.That(handler.Resets,Is.GreaterThanOrEqualTo(3)); Assert.That(handler.Presentation.Role,Is.EqualTo(TreeMotionPresentationRole.Visible)); }
             Assert.That(view.transform.localScale,Is.EqualTo(Vector3.one));
         }
 

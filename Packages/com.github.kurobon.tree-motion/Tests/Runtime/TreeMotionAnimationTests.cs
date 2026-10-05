@@ -7,6 +7,23 @@ namespace TreeMotion.Tests
     public sealed class TreeMotionAnimationTests
     {
         [Test]
+        public void PresentationProgress_IsLinearWhileGeometryUsesSmoothStep()
+        {
+            var animation = new TreeMotionAnimation<int>();
+            animation.Snap(new[] { new TreeMotionLayout<int>(1, 0f, 100f) });
+            animation.Retarget(new[]
+            {
+                new TreeMotionLayout<int>(1, 100f, 200f),
+                new TreeMotionLayout<int>(2, 300f, 100f)
+            }, 1f);
+            animation.Advance(0.25f);
+            Assert.That(Value(animation, 1).Offset, Is.EqualTo(15.625f).Within(0.0001f));
+            Assert.That(Value(animation, 1).Size, Is.EqualTo(115.625f).Within(0.0001f));
+            Assert.That(Value(animation, 2).Progress, Is.EqualTo(0.25f).Within(0.0001f));
+            Assert.That(animation.GetValue(1).Progress, Is.EqualTo(0.25f).Within(0.0001f));
+        }
+
+        [Test]
         public void Retarget_UnchangedLayoutCompletesImmediately()
         {
             var animation = new TreeMotionAnimation<int>();
@@ -98,7 +115,7 @@ namespace TreeMotion.Tests
             };
             animation.Snap(layout);
 
-            var changes = tree.BeginUpdate().SwapNodes(1, 2).Commit();
+            var changes = tree.BeginUpdate().Swap(1, 2).Commit();
             var target = new[]
             {
                 new TreeMotionLayout<int>(2, 0f, 20f),

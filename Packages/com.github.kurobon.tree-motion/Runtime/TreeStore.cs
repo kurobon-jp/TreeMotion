@@ -227,8 +227,8 @@ namespace TreeMotion
                     case TreeMutationKind.Update:
                         Update(mutation.Id, mutation.Item, changes);
                         break;
-                    case TreeMutationKind.SwapNodes:
-                        SwapNodes(mutation.Id, mutation.OtherId, changes);
+                    case TreeMutationKind.Swap:
+                        Swap(mutation.Id, mutation.OtherId, changes);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
@@ -439,7 +439,6 @@ namespace TreeMotion
                 return;
 
             ReplaceVisibleRow(visibleIndex, node);
-            AddChange(changes, new TreeChange<TId>(TreeChangeKind.Update, id, visibleIndex, visibleIndex, 1));
 
             if (isExpanded)
             {
@@ -448,21 +447,15 @@ namespace TreeMotion
                 for (var i = 0; i < node.Children.Count; i++)
                     AppendVisibleSubtree(node.Children[i], depth, _rowBuffer);
 
-                if (_rowBuffer.Count == 0)
-                    return;
-
                 InsertVisibleRange(visibleIndex + 1, _rowBuffer);
-                AddChange(changes, new TreeChange<TId>(TreeChangeKind.Insert, id, -1, visibleIndex + 1,
+                AddChange(changes, new TreeChange<TId>(TreeChangeKind.Expand, id, -1, visibleIndex + 1,
                     _rowBuffer.Count));
             }
             else
             {
                 var count = GetVisibleSubtreeEnd(visibleIndex) - visibleIndex - 1;
-                if (count == 0)
-                    return;
-
                 RemoveVisibleRange(visibleIndex + 1, count);
-                AddChange(changes, new TreeChange<TId>(TreeChangeKind.Remove, id, visibleIndex + 1, -1,
+                AddChange(changes, new TreeChange<TId>(TreeChangeKind.Collapse, id, visibleIndex + 1, -1,
                     count));
             }
         }
@@ -477,7 +470,7 @@ namespace TreeMotion
                     new TreeChange<TId>(TreeChangeKind.Update, id, visibleIndex, visibleIndex, 1));
         }
 
-        private void SwapNodes(TId firstId, TId secondId, List<TreeChange<TId>> changes)
+        private void Swap(TId firstId, TId secondId, List<TreeChange<TId>> changes)
         {
             if (_nodes.Comparer.Equals(firstId, secondId))
                 throw new ArgumentException("Swap IDs must differ.", nameof(secondId));

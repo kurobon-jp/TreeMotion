@@ -10,7 +10,9 @@ namespace TreeMotion
         Remove,
         Move,
         Update,
-        Swap
+        Swap,
+        Expand,
+        Collapse
     }
 
     public readonly struct TreeChange<TId>

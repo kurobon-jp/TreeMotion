@@ -8,7 +8,7 @@ namespace TreeMotion
 {
     public enum TreeMotionPresentationRole
     {
-        Current,
+        Visible,
         Entering,
         Exiting
     }
@@ -17,21 +17,24 @@ namespace TreeMotion
     {
         public TreeMotionAnimationKind Kind { get; }
         public TreeMotionPresentationRole Role { get; }
+        public TreeChangeKind? Cause { get; }
+        /// <summary>Linear presentation progress without easing. Retargeting preserves the current value.</summary>
         public float Progress { get; }
         public bool IsAnimating { get; }
 
         public TreeMotionPresentation(TreeMotionAnimationKind kind, TreeMotionPresentationRole role, float progress,
-            bool isAnimating)
+            bool isAnimating, TreeChangeKind? cause = null)
         {
             Kind = kind;
             Role = role;
+            Cause = cause;
             Progress = progress;
             IsAnimating = isAnimating;
         }
 
         public override string ToString()
         {
-            return $"Kind:{Kind}, Role:{Role}, Progress:{Progress}, IsAnimating:{IsAnimating}";
+            return $"Kind:{Kind}, Role:{Role}, Cause:{Cause}, Progress:{Progress}, IsAnimating:{IsAnimating}";
         }
     }
 
@@ -154,6 +157,7 @@ namespace TreeMotion
                 internal float Top, Height, Left, Right;
                 internal Layout Parent;
                 internal bool Foreground, Exiting;
+                internal TreeChangeKind? Cause;
                 internal TreeMotionGroupView Group => Definition.Group;
 
                 internal float LeadingBottom =>
@@ -211,6 +215,7 @@ namespace TreeMotion
             private readonly Dictionary<TId, Layout> _byId;
             private readonly Dictionary<TId, Lease> _leased;
             private readonly Dictionary<TId, GameObject> _nodePrefabs;
+            private readonly Dictionary<TId, TreeChangeKind> _causeRoots;
             private readonly HashSet<TId> _targets, _dirty, _renderIds, _foregroundRoots;
             private readonly List<Layout> _layouts = new();
             private readonly List<Layout> _groups = new();
@@ -238,6 +243,7 @@ namespace TreeMotion
                 _byId = new Dictionary<TId, Layout>(tree.Comparer);
                 _leased = new Dictionary<TId, Lease>(tree.Comparer);
                 _nodePrefabs = new Dictionary<TId, GameObject>(tree.Comparer);
+                _causeRoots = new Dictionary<TId, TreeChangeKind>(tree.Comparer);
                 _targets = new HashSet<TId>(tree.Comparer);
                 _dirty = new HashSet<TId>(tree.Comparer);
                 _renderIds = new HashSet<TId>(tree.Comparer);
@@ -308,9 +314,15 @@ namespace TreeMotion
                 if (changes.Count == 0) return;
                 ValidateData();
                 _foregroundRoots.Clear();
+                _causeRoots.Clear();
                 for (var i = 0; i < changes.Count; i++)
                 {
                     var change = changes[i];
+                    if (change.Kind != TreeChangeKind.Update ||
+                        !_causeRoots.ContainsKey(change.FirstId))
+                        _causeRoots[change.FirstId] = change.Kind;
+                    if (change.Kind == TreeChangeKind.Swap)
+                        _causeRoots[change.SecondId] = TreeChangeKind.Swap;
                     if (change.Kind is TreeChangeKind.Move or TreeChangeKind.Swap)
                         _foregroundRoots.Add(change.FirstId);
                     if (change.Kind == TreeChangeKind.Swap)
@@ -333,7 +345,35 @@ namespace TreeMotion
                 }
                 _vertical.Retarget(_verticalTargets, seconds, changes);
                 _horizontal.Retarget(_horizontalTargets, seconds, changes);
+                AssignPresentationCauses();
                 RefreshVisibleViews();
+            }
+
+            private void AssignPresentationCauses()
+            {
+                foreach (var pair in _byId)
+                {
+                    var layout = pair.Value;
+                    _vertical.TryGetValue(pair.Key, out var value);
+                    if (!value.IsAnimating)
+                    {
+                        layout.Cause = null;
+                        continue;
+                    }
+                    var found = false;
+                    for (var ancestor = layout; ancestor != null; ancestor = ancestor.Parent)
+                    {
+                        if (!_causeRoots.TryGetValue(ancestor.Row.Id, out var cause)) continue;
+                        // An unrelated ancestor update must not replace an ongoing entry/exit cause.
+                        if (ancestor != layout && cause == TreeChangeKind.Update) continue;
+                        layout.Cause = cause;
+                        found = true;
+                        break;
+                    }
+                    if (!found && value.Kind != TreeMotionAnimationKind.Insert &&
+                        value.Kind != TreeMotionAnimationKind.Remove)
+                        layout.Cause = null;
+                }
             }
 
             public Task ApplyAsync(TreeChangeSet<TId> changes, float? duration, CancellationToken cancellationToken)
@@ -415,8 +455,11 @@ namespace TreeMotion
                     layout.Left = pivotX - width * rect.pivot.x;
                     layout.Right = _layoutWidth - layout.Left - width;
 
-                    if (_byId.TryGetValue(row.Id, out var old) && (old.Prefab != prefab || !SameRow(old.Row, row)))
-                        _dirty.Add(row.Id);
+                    if (_byId.TryGetValue(row.Id, out var old))
+                    {
+                        layout.Cause = old.Cause;
+                        if (old.Prefab != prefab || !SameRow(old.Row, row)) _dirty.Add(row.Id);
+                    }
                     _byId[row.Id] = layout;
                     _layouts.Add(layout);
                     _targets.Add(row.Id);
@@ -613,9 +656,9 @@ namespace TreeMotion
                         lease.GroupView.SetGeometry(vertical.Size);
                     var role = vertical.Kind == TreeMotionAnimationKind.Remove ? TreeMotionPresentationRole.Exiting :
                         vertical.Kind == TreeMotionAnimationKind.Insert ? TreeMotionPresentationRole.Entering :
-                        TreeMotionPresentationRole.Current;
+                        TreeMotionPresentationRole.Visible;
                     lease.Present(new TreeMotionPresentation(vertical.Kind, role, vertical.Progress,
-                        vertical.IsAnimating));
+                        vertical.IsAnimating, vertical.IsAnimating ? layout.Cause : null));
                     _orderedViews.Add(lease);
                     if (!lease.GameObject.activeSelf) lease.GameObject.SetActive(true);
                 }

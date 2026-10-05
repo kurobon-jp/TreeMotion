@@ -211,17 +211,17 @@ namespace TreeMotion.Tests
             var collapse = tree.BeginUpdate().Expanded(1, false).Commit();
 
             AssertVisible(tree, (1, 0));
-            Assert.That(collapse.Count, Is.EqualTo(2));
-            Assert.That(collapse[1].Kind, Is.EqualTo(TreeChangeKind.Remove));
-            Assert.That(collapse[1].FromIndex, Is.EqualTo(1));
-            Assert.That(collapse[1].Count, Is.EqualTo(3));
+            Assert.That(collapse.Count, Is.EqualTo(1));
+            Assert.That(collapse[0].Kind, Is.EqualTo(TreeChangeKind.Collapse));
+            Assert.That(collapse[0].FromIndex, Is.EqualTo(1));
+            Assert.That(collapse[0].Count, Is.EqualTo(3));
 
             var expand = tree.BeginUpdate().Expanded(1, true).Commit();
 
             AssertVisible(tree, (1, 0), (2, 1), (3, 1), (4, 2));
-            Assert.That(expand[1].Kind, Is.EqualTo(TreeChangeKind.Insert));
-            Assert.That(expand[1].ToIndex, Is.EqualTo(1));
-            Assert.That(expand[1].Count, Is.EqualTo(3));
+            Assert.That(expand[0].Kind, Is.EqualTo(TreeChangeKind.Expand));
+            Assert.That(expand[0].ToIndex, Is.EqualTo(1));
+            Assert.That(expand[0].Count, Is.EqualTo(3));
         }
 
         [Test]
@@ -342,7 +342,7 @@ namespace TreeMotion.Tests
         }
 
         [Test]
-        public void SwapNodes_ExchangesSiblingSubtrees()
+        public void Swap_ExchangesSiblingSubtrees()
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate()
@@ -352,7 +352,7 @@ namespace TreeMotion.Tests
                 .Insert(1, 4, "second")
                 .Commit();
 
-            var changes = tree.BeginUpdate().SwapNodes(2, 4).Commit();
+            var changes = tree.BeginUpdate().Swap(2, 4).Commit();
 
             Assert.That(tree.GetItem(2), Is.EqualTo("first"));
             Assert.That(tree.GetItem(4), Is.EqualTo("second"));
@@ -368,7 +368,7 @@ namespace TreeMotion.Tests
         }
 
         [Test]
-        public void SwapNodes_ExchangesPositionsAcrossParents()
+        public void Swap_ExchangesPositionsAcrossParents()
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate()
@@ -379,7 +379,7 @@ namespace TreeMotion.Tests
                 .Insert(4, 5, "second child")
                 .Commit();
 
-            tree.BeginUpdate().SwapNodes(2, 5).Commit();
+            tree.BeginUpdate().Swap(2, 5).Commit();
 
             Assert.That(tree.GetChildId(1, 0), Is.EqualTo(5));
             Assert.That(tree.GetChildId(4, 0), Is.EqualTo(2));
@@ -392,22 +392,22 @@ namespace TreeMotion.Tests
         }
 
         [Test]
-        public void SwapNodes_RejectsTheSameIdentity()
+        public void Swap_RejectsTheSameIdentity()
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate().InsertRoot(1, "one").InsertRoot(2, "two").Commit();
 
             Assert.Throws<ArgumentException>(() =>
-                tree.BeginUpdate().SwapNodes(1, 1).Commit());
+                tree.BeginUpdate().Swap(1, 1).Commit());
         }
 
         [Test]
-        public void SwapNodes_RejectsAncestorAndDescendantWithoutChangingTheTree()
+        public void Swap_RejectsAncestorAndDescendantWithoutChangingTheTree()
         {
             var tree = CreateNestedTree();
 
             Assert.Throws<InvalidOperationException>(() =>
-                tree.BeginUpdate().SwapNodes(1, 4).Commit());
+                tree.BeginUpdate().Swap(1, 4).Commit());
 
             AssertVisible(tree, (1, 0), (2, 1), (3, 1), (4, 2));
         }

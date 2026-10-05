@@ -57,9 +57,9 @@ namespace TreeMotion
             return this;
         }
 
-        public TreeUpdate<TId, TItem> SwapNodes(TId firstId, TId secondId)
+        public TreeUpdate<TId, TItem> Swap(TId firstId, TId secondId)
         {
-            Add(TreeMutation<TId, TItem>.SwapNodes(firstId, secondId));
+            Add(TreeMutation<TId, TItem>.Swap(firstId, secondId));
             return this;
         }
 
@@ -87,7 +87,7 @@ namespace TreeMotion
         Move,
         Expanded,
         Update,
-        SwapNodes
+        Swap
     }
 
     internal readonly struct TreeMutation<TId, TItem>
@@ -143,8 +143,8 @@ namespace TreeMotion
             => new(TreeMutationKind.Update, id, default, default, item,
                 -1, false, false);
 
-        internal static TreeMutation<TId, TItem> SwapNodes(TId firstId, TId secondId)
-            => new(TreeMutationKind.SwapNodes, firstId, default,
+        internal static TreeMutation<TId, TItem> Swap(TId firstId, TId secondId)
+            => new(TreeMutationKind.Swap, firstId, default,
                 secondId, default, -1, false, false);
     }
 }

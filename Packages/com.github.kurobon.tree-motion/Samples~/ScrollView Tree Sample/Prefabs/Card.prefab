@@ -399,11 +399,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TreeMotion.Samples.ScrollView.ScrollViewTreeSampleRow
   _button: {fileID: 3175251066216858314}
-  _background: {fileID: 1180700134187782436}
   _label: {fileID: 6746467612532114893}
   _toggleLabel: {fileID: 3709239398374888180}
-  _visual: {fileID: 2860737555824560397}
-  _slideDistance: 120
 --- !u!114 &2815735395346708779
 MonoBehaviour:
   m_ObjectHideFlags: 0
