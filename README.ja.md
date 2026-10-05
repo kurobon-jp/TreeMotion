@@ -218,7 +218,7 @@ PrefabのルートGameObjectにScalingを追加します。
 この例はGroupの展開・折り畳み時に縦方向のスケールを変更し、それ以外は等倍で表示します。
 
 変更の種類・Entering／Visible／Exiting・線形の進行度が渡されます。
-`presentation.Cause`は`TreeChangeKind`で演出の原因（Insert・Remove・Expand・Collapse・Move・Swap・Update）を返します。原因がない場合はnullです。
+`presentation.Cause`は`TreeChangeKind`で演出（Insert・Remove・Expand・Collapse・Move・Swap・Update）を返します。
 たとえば、追加は`Role = Entering, Cause = Insert`、Groupを開いた際の子の登場は`Role = Entering, Cause = Expand`です。
 ResetPresentationはプール返却／再利用時に状態を戻します。
 異なるプロパティを操作するハンドラーは併用できます。
