@@ -1,14 +1,14 @@
 using System;
-using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace TreeMotion.Samples.ScrollView
 {
     public sealed class ScrollViewTreeSampleRow : MonoBehaviour
     {
-        [SerializeField] private UnityEngine.UI.Button _button;
-        [SerializeField] private TextMeshProUGUI _label;
-        [SerializeField] private TextMeshProUGUI _toggleLabel;
+        [SerializeField] private Button _button;
+        [SerializeField] private Text _label;
+        [SerializeField] private Text _toggleLabel;
 
         private Action<int> _clicked;
         private int _id;
