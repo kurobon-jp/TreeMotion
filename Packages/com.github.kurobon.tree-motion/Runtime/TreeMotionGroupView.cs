@@ -20,8 +20,8 @@ namespace TreeMotion
     public class TreeMotionGroupView : MonoBehaviour
     {
         [SerializeField] private RectTransform _childrenFrame;
-        [SerializeField, Min(0f)] private float _childrenSpacing = 3f;
-        [SerializeField] private TreeMotionPadding _childrenPadding = new TreeMotionPadding(12, 12, 0, 11);
+        [SerializeField, Min(0f)] private float _childrenSpacing;
+        [SerializeField] private TreeMotionPadding _childrenPadding = new (0, 0, 0, 0);
         public RectTransform ChildrenFrame => _childrenFrame;
         public float ChildrenSpacing => _childrenSpacing;
         public TreeMotionPadding ChildrenPadding => _childrenPadding;
