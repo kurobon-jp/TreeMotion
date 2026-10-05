@@ -29,6 +29,19 @@ namespace TreeMotion
         }
 
         private Dictionary<TId, Node> _nodes;
+        private struct NodeUndo
+        {
+            internal Node Original;
+            internal TItem Item;
+            internal TId ParentId;
+            internal bool HasParent, IsExpanded;
+            internal List<TId> Children;
+        }
+
+        private readonly Dictionary<TId, NodeUndo> _undoNodes;
+        private readonly List<TId> _undoRoots = new();
+        private readonly Stack<List<TId>> _undoChildrenPool = new();
+        private bool _rootOrderSaved;
         private List<TId> _roots = new();
         private List<VisibleRow<TId>> _visibleRows = new();
         private Dictionary<TId, int> _visibleIndices;
@@ -45,6 +58,7 @@ namespace TreeMotion
         public TreeStore(IEqualityComparer<TId> comparer)
         {
             _nodes = new Dictionary<TId, Node>(comparer ?? EqualityComparer<TId>.Default);
+            _undoNodes = new Dictionary<TId, NodeUndo>(_nodes.Comparer);
             _visibleIndices = new Dictionary<TId, int>(comparer ?? EqualityComparer<TId>.Default);
             _idSetBuffer = new HashSet<TId>(comparer ?? EqualityComparer<TId>.Default);
         }
@@ -76,9 +90,6 @@ namespace TreeMotion
                 ValidateId(record.Id, nameof(records));
                 if (record.HasParent)
                     ValidateId(record.ParentId, nameof(records));
-                if (record.SiblingIndex < 0)
-                    throw new ArgumentOutOfRangeException(nameof(records),
-                        "Sibling indices cannot be negative.");
                 if (!nodes.TryAdd(record.Id, new Node(record.Id, record.Item,
                         record.ParentId, record.HasParent, record.IsExpanded)))
                     throw new ArgumentException($"Duplicate node ID '{record.Id}'.",
@@ -108,6 +119,8 @@ namespace TreeMotion
             }
 
             SortAndValidateOrder(roots, "root", records);
+            foreach (var node in nodes.Values)
+                if (node.HasParent) node.ParentId = nodes[node.ParentId].Id;
             foreach (var pair in childOrders)
             {
                 SortAndValidateOrder(pair.Value, $"parent '{pair.Key}'", records);
@@ -196,6 +209,90 @@ namespace TreeMotion
         }
 
         internal TreeChangeSet<TId> Apply(IReadOnlyList<TreeMutation<TId, TItem>> mutations)
+        {
+            if (mutations.Count == 0) return new TreeChangeSet<TId>(new List<TreeChange<TId>>());
+
+            try
+            {
+                return ApplyCore(mutations);
+            }
+            catch
+            {
+                Rollback();
+                throw;
+            }
+            finally
+            {
+                foreach (var saved in _undoNodes.Values)
+                {
+                    if (saved.Children == null) continue;
+                    saved.Children.Clear();
+                    _undoChildrenPool.Push(saved.Children);
+                }
+                _undoNodes.Clear();
+                _undoRoots.Clear();
+                _rootOrderSaved = false;
+            }
+        }
+
+        private void SaveNode(Node node, bool saveChildren = false)
+        {
+            if (!_undoNodes.TryGetValue(node.Id, out var saved))
+                saved = new NodeUndo
+                {
+                    Original = node, Item = node.Item, ParentId = node.ParentId,
+                    HasParent = node.HasParent, IsExpanded = node.IsExpanded
+                };
+            // A node added in this batch only needs to be removed on rollback.
+            if (saved.Original != null && saveChildren && saved.Children == null)
+            {
+                saved.Children = _undoChildrenPool.Count > 0 ? _undoChildrenPool.Pop() : new List<TId>();
+                saved.Children.AddRange(saved.Original.Children);
+            }
+            _undoNodes[node.Id] = saved;
+        }
+
+        private void SaveSiblingOrder(Node parent)
+        {
+            if (parent != null) SaveNode(parent, saveChildren: true);
+            else if (!_rootOrderSaved)
+            {
+                _undoRoots.AddRange(_roots);
+                _rootOrderSaved = true;
+            }
+        }
+
+        private void Rollback()
+        {
+            foreach (var pair in _undoNodes)
+            {
+                var saved = pair.Value;
+                if (saved.Original == null)
+                {
+                    _nodes.Remove(pair.Key);
+                    continue;
+                }
+                var node = saved.Original;
+                node.Item = saved.Item;
+                node.ParentId = saved.ParentId;
+                node.HasParent = saved.HasParent;
+                node.IsExpanded = saved.IsExpanded;
+                if (saved.Children != null)
+                {
+                    node.Children.Clear();
+                    node.Children.AddRange(saved.Children);
+                }
+                _nodes[pair.Key] = node;
+            }
+            if (_rootOrderSaved)
+            {
+                _roots.Clear();
+                _roots.AddRange(_undoRoots);
+            }
+            RebuildVisibleRows();
+        }
+
+        private TreeChangeSet<TId> ApplyCore(IReadOnlyList<TreeMutation<TId, TItem>> mutations)
         {
             var changes = new List<TreeChange<TId>>(mutations.Count);
             for (var i = 0; i < mutations.Count; i++)
@@ -286,11 +383,13 @@ namespace TreeMotion
             }
 
             var visibleIndex = GetVisibleInsertionIndex(parent, siblings, childIndex);
+            SaveSiblingOrder(parent);
             for (var i = 0; i < count; i++)
             {
                 var mutation = mutations[start + i];
+                _undoNodes.TryAdd(mutation.Id, default);
                 _nodes.Add(mutation.Id,
-                    new Node(mutation.Id, mutation.Item, mutation.ParentId, mutation.HasParent,
+                    new Node(mutation.Id, mutation.Item, parent == null ? default : parent.Id, mutation.HasParent,
                         mutation.IsExpanded));
             }
 
@@ -332,8 +431,10 @@ namespace TreeMotion
             }
 
             var childIndex = NormalizeInsertionIndex(mutation.Index, siblings.Count);
-            var node = new Node(mutation.Id, mutation.Item, mutation.ParentId, mutation.HasParent,
+            var node = new Node(mutation.Id, mutation.Item, parent == null ? default : parent.Id, mutation.HasParent,
                 mutation.IsExpanded);
+            SaveSiblingOrder(parent);
+            _undoNodes.TryAdd(mutation.Id, default);
             _nodes.Add(mutation.Id, node);
             siblings.Insert(childIndex, mutation.Id);
 
@@ -356,7 +457,8 @@ namespace TreeMotion
             var visibleCount = visibleIndex < 0 ? 0 : GetVisibleSubtreeEnd(visibleIndex) - visibleIndex;
 
             var siblings = node.HasParent ? parent.Children : _roots;
-            siblings.RemoveAt(siblings.IndexOf(id));
+            SaveSiblingOrder(parent);
+            siblings.RemoveAt(FindSiblingIndex(siblings, node.Id));
             RemoveNodeAndDescendants(id);
 
             if (visibleCount > 0)
@@ -384,13 +486,16 @@ namespace TreeMotion
             var oldVisibleCount = oldVisibleIndex < 0 ? 0 : GetVisibleSubtreeEnd(oldVisibleIndex) - oldVisibleIndex;
 
             var oldSiblings = node.HasParent ? oldParent.Children : _roots;
-            var oldSiblingIndex = oldSiblings.IndexOf(node.Id);
+            SaveNode(node);
+            SaveSiblingOrder(oldParent);
+            SaveSiblingOrder(newParent);
+            var oldSiblingIndex = FindSiblingIndex(oldSiblings, node.Id);
             oldSiblings.RemoveAt(oldSiblingIndex);
 
             var newSiblings = newParent == null ? _roots : newParent.Children;
             var newSiblingIndex = NormalizeInsertionIndex(mutation.Index, newSiblings.Count);
             newSiblings.Insert(newSiblingIndex, node.Id);
-            node.ParentId = mutation.ParentId;
+            node.ParentId = newParent == null ? default : newParent.Id;
             node.HasParent = mutation.HasParent;
 
             if (oldVisibleCount > 0)
@@ -433,6 +538,7 @@ namespace TreeMotion
             if (node.IsExpanded == isExpanded)
                 return;
 
+            SaveNode(node);
             node.IsExpanded = isExpanded;
             var visibleIndex = IndexOfVisible(id);
             if (visibleIndex < 0)
@@ -463,6 +569,7 @@ namespace TreeMotion
         private void Update(TId id, TItem item, List<TreeChange<TId>> changes)
         {
             var node = GetNode(id);
+            SaveNode(node);
             node.Item = item;
             var visibleIndex = IndexOfVisible(id);
             if (visibleIndex >= 0)
@@ -486,18 +593,22 @@ namespace TreeMotion
             var secondParent = second.HasParent ? GetNode(second.ParentId) : null;
             var firstSiblings = firstParent == null ? _roots : firstParent.Children;
             var secondSiblings = secondParent == null ? _roots : secondParent.Children;
-            var firstSiblingIndex = firstSiblings.IndexOf(firstId);
-            var secondSiblingIndex = secondSiblings.IndexOf(secondId);
+            var firstSiblingIndex = FindSiblingIndex(firstSiblings, first.Id);
+            var secondSiblingIndex = FindSiblingIndex(secondSiblings, second.Id);
+            SaveNode(first);
+            SaveNode(second);
+            SaveSiblingOrder(firstParent);
+            SaveSiblingOrder(secondParent);
 
             if (ReferenceEquals(firstSiblings, secondSiblings))
             {
-                firstSiblings[firstSiblingIndex] = secondId;
-                firstSiblings[secondSiblingIndex] = firstId;
+                firstSiblings[firstSiblingIndex] = second.Id;
+                firstSiblings[secondSiblingIndex] = first.Id;
             }
             else
             {
-                firstSiblings[firstSiblingIndex] = secondId;
-                secondSiblings[secondSiblingIndex] = firstId;
+                firstSiblings[firstSiblingIndex] = second.Id;
+                secondSiblings[secondSiblingIndex] = first.Id;
             }
 
             var firstParentId = first.ParentId;
@@ -510,6 +621,13 @@ namespace TreeMotion
             RebuildVisibleRows();
             AddChange(changes, new TreeChange<TId>(TreeChangeKind.Swap, firstId, secondId,
                 firstVisibleIndex, IndexOfVisible(firstId), 2));
+        }
+
+        private int FindSiblingIndex(List<TId> siblings, TId id)
+        {
+            for (var i = 0; i < siblings.Count; i++)
+                if (Comparer.Equals(siblings[i], id)) return i;
+            throw new InvalidOperationException("Node is missing from its sibling list.");
         }
 
         private bool IsAncestor(Node possibleAncestor, Node node)
@@ -689,6 +807,7 @@ namespace TreeMotion
             {
                 var currentId = _idStack.Pop();
                 var current = _nodes[currentId];
+                SaveNode(current);
                 for (var i = 0; i < current.Children.Count; i++)
                     _idStack.Push(current.Children[i]);
                 _nodes.Remove(currentId);

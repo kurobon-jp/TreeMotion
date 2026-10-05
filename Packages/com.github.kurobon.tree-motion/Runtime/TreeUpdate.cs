@@ -14,14 +14,14 @@ namespace TreeMotion
             _store = store;
         }
 
-        public TreeUpdate<TId, TItem> InsertRoot(TId id, TItem item, int index = -1, bool isExpanded = false)
+        public TreeUpdate<TId, TItem> InsertRoot(TId id, TItem item, int index = -1, bool isExpanded = true)
         {
             Add(TreeMutation<TId, TItem>.InsertRoot(id, item, index, isExpanded));
             return this;
         }
 
         public TreeUpdate<TId, TItem> Insert(TId parentId, TId id, TItem item, int index = -1,
-            bool isExpanded = false)
+            bool isExpanded = true)
         {
             Add(TreeMutation<TId, TItem>.Insert(parentId, id, item, index, isExpanded));
             return this;
@@ -68,8 +68,9 @@ namespace TreeMotion
             if (_committed)
                 throw new InvalidOperationException("This update has already been committed.");
 
+            var changes = _store.Apply(_mutations);
             _committed = true;
-            return _store.Apply(_mutations);
+            return changes;
         }
 
         private void Add(TreeMutation<TId, TItem> mutation)

@@ -6,6 +6,156 @@ namespace TreeMotion.Tests
 {
     public sealed class TreeStoreTests
     {
+        [TestCase("repeatedChanges")]
+        [TestCase("removeAndReinsert")]
+        [TestCase("insertAndRemove")]
+        [TestCase("removeMovedSubtree")]
+        public void Rollback_RestoresOriginalStateAcrossCombinedMutations(string scenario)
+        {
+            var tree = CreateNestedTree();
+            var update = tree.BeginUpdate();
+            switch (scenario)
+            {
+                case "repeatedChanges":
+                    update.Update(3, "First").Update(3, "Second").Expanded(3, false)
+                        .MoveToRoot(3).Swap(1, 3).Move(3, 1).Expanded(1, false);
+                    break;
+                case "removeAndReinsert":
+                    update.Remove(3).Insert(1, 3, "Replacement")
+                        .Insert(3, 5, "New child").Update(3, "Changed again");
+                    break;
+                case "insertAndRemove":
+                    update.Insert(1, 5, "New group").Insert(5, 6, "New child")
+                        .Remove(5).Insert(1, 5, "Reused ID");
+                    break;
+                case "removeMovedSubtree":
+                    update.MoveToRoot(3).Remove(1).Remove(3);
+                    break;
+            }
+            update.Move(99, 1);
+            Assert.Throws<KeyNotFoundException>(() => update.Commit());
+            Assert.That(tree.Count, Is.EqualTo(4));
+            Assert.That(tree.RootCount, Is.EqualTo(1));
+            Assert.That(tree.GetRootId(0), Is.EqualTo(1));
+            Assert.That(tree.GetChildCount(1), Is.EqualTo(2));
+            Assert.That(tree.GetChildId(1, 0), Is.EqualTo(2));
+            Assert.That(tree.GetChildId(1, 1), Is.EqualTo(3));
+            Assert.That(tree.GetChildId(3, 0), Is.EqualTo(4));
+            Assert.That(tree.GetItem(3), Is.EqualTo("B"));
+            Assert.That(tree.IsExpanded(1), Is.True);
+            Assert.That(tree.IsExpanded(3), Is.True);
+            tree.TryGetParentId(3, out var parent);
+            Assert.That(parent, Is.EqualTo(1));
+            AssertVisible(tree, (1, 0), (2, 1), (3, 1), (4, 2));
+            // Journal state and scratch collections must also be ready for the next batch.
+            tree.BeginUpdate().Update(3, "Success").Insert(3, 5, "Child").Commit();
+            Assert.That(tree.GetItem(3), Is.EqualTo("Success"));
+            Assert.That(tree.GetChildId(3, 1), Is.EqualTo(5));
+        }
+
+        [Test]
+        public void Commit_SingleItemUpdateAllocationsDoNotScaleWithTreeSize()
+        {
+            long Measure(int count)
+            {
+                var tree = new TreeStore<int, int>();
+                var records = new TreeNodeRecord<int, int>[count];
+                records[0] = new TreeNodeRecord<int, int>(0, 0, isExpanded: false);
+                for (var i = 1; i < count; i++) records[i] = new TreeNodeRecord<int, int>(i, i, parentId: 0);
+                tree.LoadSnapshot(records);
+                tree.BeginUpdate().Update(1, 0).Commit();
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 20; i++) tree.BeginUpdate().Update(1, i).Commit();
+                return GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+            var small = Measure(10);
+            var large = Measure(10000);
+            Assert.That(large, Is.LessThanOrEqualTo(small + 256));
+        }
+
+        [TestCase("duplicate")]
+        [TestCase("ancestorSwap")]
+        [TestCase("descendantMove")]
+        [TestCase("missingParent")]
+        public void Commit_FailurePreservesAllEarlierMutations(string failure)
+        {
+            var tree = new TreeStore<int, string>();
+            tree.LoadSnapshot(new[]
+            {
+                new TreeNodeRecord<int, string>(1, "Group"),
+                new TreeNodeRecord<int, string>(2, "Child", parentId: 1)
+            });
+            var update = tree.BeginUpdate().Update(1, "Changed").Expanded(1, false)
+                .InsertRoot(3, "New root");
+            switch (failure)
+            {
+                case "duplicate": update.InsertRoot(2, "Duplicate"); break;
+                case "ancestorSwap": update.Swap(1, 2); break;
+                case "descendantMove": update.Move(1, 2); break;
+                case "missingParent": update.Move(2, 99); break;
+            }
+            Assert.Catch(() => update.Commit());
+            Assert.That(tree.Count, Is.EqualTo(2));
+            Assert.That(tree.GetItem(1), Is.EqualTo("Group"));
+            Assert.That(tree.IsExpanded(1), Is.True);
+            Assert.That(tree.GetChildId(1, 0), Is.EqualTo(2));
+            AssertVisible(tree, (1, 0), (2, 1));
+        }
+
+        [Test]
+        public void FailedCommit_CanBeRetriedAfterFixingStore()
+        {
+            var tree = new TreeStore<int, string>();
+            tree.LoadSnapshot(new[] { new TreeNodeRecord<int, string>(1, "Original") });
+            var update = tree.BeginUpdate().Update(1, "Changed").Insert(9, 2, "Child");
+            Assert.Throws<KeyNotFoundException>(() => update.Commit());
+            Assert.That(tree.GetItem(1), Is.EqualTo("Original"));
+            tree.BeginUpdate().InsertRoot(9, "Parent").Commit();
+            update.Commit();
+            Assert.That(tree.GetItem(1), Is.EqualTo("Changed"));
+            Assert.That(tree.GetChildId(9, 0), Is.EqualTo(2));
+            Assert.Throws<InvalidOperationException>(() => update.Commit());
+        }
+
+        [Test]
+        public void CustomComparer_RemoveMoveSwapAndParentsUseCanonicalIds()
+        {
+            var tree = new TreeStore<string, string>(StringComparer.OrdinalIgnoreCase);
+            tree.LoadSnapshot(new[]
+            {
+                new TreeNodeRecord<string, string>("Alpha", "A"),
+                new TreeNodeRecord<string, string>("Beta", "B"),
+                new TreeNodeRecord<string, string>("Child", "C", parentId: "ALPHA")
+            });
+            tree.TryGetParentId("child", out var parent);
+            Assert.That(parent, Is.EqualTo("Alpha"));
+            tree.BeginUpdate().Insert("ALPHA", "First", "F").Insert("alpha", "Second", "S").Commit();
+            tree.TryGetParentId("FIRST", out parent);
+            Assert.That(parent, Is.EqualTo("Alpha"));
+            tree.TryGetParentId("SECOND", out parent);
+            Assert.That(parent, Is.EqualTo("Alpha"));
+            tree.BeginUpdate().Move("CHILD", "BETA").Swap("ALPHA", "beta").Commit();
+            tree.TryGetParentId("child", out parent);
+            Assert.That(parent, Is.EqualTo("Beta"));
+            Assert.That(tree.GetRootId(0), Is.EqualTo("Beta"));
+            Assert.That(tree.GetChildId("BETA", 0), Is.EqualTo("Child"));
+            tree.BeginUpdate().Remove("CHILD").Remove("ALPHA").Commit();
+            Assert.That(tree.Count, Is.EqualTo(1));
+            Assert.That(tree.GetRootId(0), Is.EqualTo("Beta"));
+        }
+
+        [Test]
+        public void SnapshotAndInsert_DefaultToExpanded()
+        {
+            var tree = new TreeStore<int, string>();
+            tree.LoadSnapshot(new[] { new TreeNodeRecord<int, string>(1, "Snapshot") });
+            tree.BeginUpdate().InsertRoot(2, "Inserted").Insert(2, 3, "Child").Commit();
+            Assert.That(tree.IsExpanded(1), Is.True);
+            Assert.That(tree.IsExpanded(2), Is.True);
+            Assert.That(tree.IsExpanded(3), Is.True);
+            AssertVisible(tree, (1, 0), (2, 0), (3, 1));
+        }
+
         [Test]
         public void SnapshotRecord_ParentPresenceDefinesHierarchyIncludingZeroId()
         {

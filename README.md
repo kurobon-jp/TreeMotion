@@ -48,8 +48,9 @@ TreeMotionGroupView and a **ChildrenFrame** stretched on the vertical axis.
 
 ```text
 Group prefab                TreeMotionGroupView
-├─ Header                   Optional authored UI
-└─ ChildrenFrame            RectTransform stretched on both axes
+├─ Header                   Optional header UI
+├─ ChildrenFrame            RectTransform stretched on vertical axes
+└─ Footer                   Optional footer UI
 ```
 
 Frame insets reserve space for headings and decorations. Child spacing and padding are configured
@@ -152,10 +153,13 @@ such as selection; change the item through Update to update its size or content.
 Create a batch with `tree.BeginUpdate()`, call the operations below, then `Commit()` once.
 Pass the returned changes to `binding.Apply` or `binding.ApplyAsync` to update the display.
 Committing alone changes data, not the connected UI.
+If any operation fails, TreeStore remains unchanged. A failed batch can be committed again after
+the cause is resolved; a successful batch cannot be committed again. Commit saves affected nodes
+and sibling orders for rollback; visible rows are rebuilt only when a batch fails.
 
 | Operation | API | Behavior | Animation and notes |
 | --- | --- | --- | --- |
-| **Insert** | `Insert(parentId, id, item, index = -1, isExpanded = false)` <br/> `InsertRoot(id, item, index = -1, isExpanded = false)` | Adds a child or top-level node. IDs must be unique. Omitting index appends; `0` inserts at the beginning. A Group and its children can be inserted in one batch. | Visible nodes receive entering presentation; surrounding nodes and Group extents adjust. Children inserted into a collapsed Group stay hidden until it expands. |
+| **Insert** | `Insert(parentId, id, item, index = -1, isExpanded = true)` <br/> `InsertRoot(id, item, index = -1, isExpanded = true)` | Adds a child or top-level node. IDs must be unique. Omitting index appends; `0` inserts at the beginning. A Group and its children can be inserted in one batch. | Visible nodes receive entering presentation; surrounding nodes and Group extents adjust. Children inserted into a collapsed Group stay hidden until it expands. |
 | **Remove** | `Remove(id)` | Deletes a node **and all its descendants** from TreeStore. | Visible views receive exiting presentation, then return to their pools. Surrounding nodes close the gap. During exit, the view can remain visible after its data has been removed. |
 | **Move** | `Move(id, parentId, index = -1)` / `MoveToRoot(id, index = -1)` | Changes parent/order while retaining ID, item, expanded state, and descendants. Index refers to the destination list after removing the node from its previous position. | Visible views interpolate to the destination, including horizontal geometry changes when depth changes. The target subtree renders in front. Moving into/out of a collapsed region hides/reveals nodes. Moving under one's own descendant is rejected. |
 | **Expanded** | `Expanded(id, isExpanded)` | `true` reveals children; `false` hides them **without deleting data**. Descendants retain their own expanded states. | Group extents and surrounding positions animate. Children entering/leaving the visible sequence receive Entering/Exiting presentation roles. |

@@ -116,8 +116,9 @@ namespace TreeMotion
             return new TreeMotionBinding<TId>(driver);
         }
 
-        private void Update() => _driver?.Tick(Time.deltaTime);
-        private void OnDestroy() => _driver?.Dispose();
+        private void Update() => Tick(Time.deltaTime);
+        internal void Tick(float deltaTime) => _driver?.Tick(deltaTime);
+        internal void OnDestroy() => _driver?.Dispose();
 
         internal static void Position(RectTransform rect, Rect bounds, float left, float width, float top, float height)
         {
@@ -588,12 +589,14 @@ namespace TreeMotion
                             AddRender(group);
                 }
 
+                var isAnimating = IsAnimating;
                 foreach (var layout in _render)
                 {
                     layout.Exiting = !_targets.Contains(layout.Row.Id);
                     layout.Foreground = false;
+                    if (!isAnimating || _foregroundRoots.Count == 0) continue;
                     for (var ancestor = layout; ancestor != null; ancestor = ancestor.Parent)
-                        if (IsAnimating && _foregroundRoots.Contains(ancestor.Row.Id))
+                        if (_foregroundRoots.Contains(ancestor.Row.Id))
                         {
                             layout.Foreground = true;
                             break;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using static TreeMotion.TreeMotionNumericValidation;
 
 namespace TreeMotion
 {
@@ -30,18 +31,6 @@ namespace TreeMotion
             Size = size;
         }
 
-        private static void ValidateFinite(float value, string parameterName)
-        {
-            if (float.IsNaN(value) || float.IsInfinity(value))
-                throw new ArgumentOutOfRangeException(parameterName);
-        }
-
-        private static void ValidateNonNegativeFinite(float value, string parameterName)
-        {
-            ValidateFinite(value, parameterName);
-            if (value < 0f)
-                throw new ArgumentOutOfRangeException(parameterName);
-        }
     }
 
     public readonly struct TreeMotionAnimationValue<TId>
@@ -112,7 +101,6 @@ namespace TreeMotion
         // Preserve exiting tracks and their presentation progress until the transition ends.
         internal void SnapGeometry(IReadOnlyList<TreeMotionLayout<TId>> layout)
         {
-            ValidateLayout(layout);
             BuildTargetIndex(layout);
             for (var i = 0; i < _tracks.Count; i++)
             {
@@ -353,12 +341,6 @@ namespace TreeMotion
         private void BuildTargetIndex(IReadOnlyList<TreeMotionLayout<TId>> target)
         {
             ValidateLayout(target);
-            _targetIndices.Clear();
-            for (var i = 0; i < target.Count; i++)
-            {
-                if (!_targetIndices.TryAdd(target[i].Id, i))
-                    throw new ArgumentException("Duplicate IDs are not allowed.", nameof(target));
-            }
         }
 
         private void ValidateLayout(IReadOnlyList<TreeMotionLayout<TId>> layout)
@@ -393,21 +375,25 @@ namespace TreeMotion
         private static float Lerp(float from, float to, float progress)
             => from + (to - from) * progress;
 
-        private static void ValidatePositiveFinite(float value, string parameterName)
+    }
+
+    internal static class TreeMotionNumericValidation
+    {
+        internal static void ValidatePositiveFinite(float value, string parameterName)
         {
             ValidateFinite(value, parameterName);
             if (value <= 0f)
                 throw new ArgumentOutOfRangeException(parameterName);
         }
 
-        private static void ValidateNonNegativeFinite(float value, string parameterName)
+        internal static void ValidateNonNegativeFinite(float value, string parameterName)
         {
             ValidateFinite(value, parameterName);
             if (value < 0f)
                 throw new ArgumentOutOfRangeException(parameterName);
         }
 
-        private static void ValidateFinite(float value, string parameterName)
+        internal static void ValidateFinite(float value, string parameterName)
         {
             if (float.IsNaN(value) || float.IsInfinity(value))
                 throw new ArgumentOutOfRangeException(parameterName);
