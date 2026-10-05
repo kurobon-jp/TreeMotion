@@ -72,6 +72,7 @@ namespace TreeMotion
     /// </summary>
     public sealed class TreeMotionAnimation<TId>
     {
+        private static readonly bool IdCanBeNull = default(TId) is null;
         private struct Track
         {
             internal TId Id;
@@ -296,7 +297,7 @@ namespace TreeMotion
         /// <summary>Looks up one stable ID without scanning or allocating.</summary>
         public bool TryGetValue(TId id, out TreeMotionAnimationValue<TId> value)
         {
-            if (id is null)
+            if (IdCanBeNull && id is null)
                 throw new ArgumentNullException(nameof(id));
             if (_trackIndices.TryGetValue(id, out var index))
             {

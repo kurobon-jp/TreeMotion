@@ -55,8 +55,8 @@ namespace TreeMotion.Tests
             setup.Commit();
 
             var stopwatch = Stopwatch.StartNew();
-            tree.BeginUpdate().SetExpanded(0, false).Commit();
-            tree.BeginUpdate().SetExpanded(0, true).Commit();
+            tree.BeginUpdate().Expanded(0, false).Commit();
+            tree.BeginUpdate().Expanded(0, true).Commit();
             stopwatch.Stop();
 
             TestContext.WriteLine($"Collapsed and expanded {count:N0} rows in " +

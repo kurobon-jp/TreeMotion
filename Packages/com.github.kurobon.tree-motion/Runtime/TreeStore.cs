@@ -221,11 +221,11 @@ namespace TreeMotion
                     case TreeMutationKind.Move:
                         Move(mutation, changes);
                         break;
-                    case TreeMutationKind.SetExpanded:
-                        SetExpanded(mutation.Id, mutation.IsExpanded, changes);
+                    case TreeMutationKind.Expanded:
+                        Expanded(mutation.Id, mutation.IsExpanded, changes);
                         break;
-                    case TreeMutationKind.UpdateItem:
-                        UpdateItem(mutation.Id, mutation.Item, changes);
+                    case TreeMutationKind.Update:
+                        Update(mutation.Id, mutation.Item, changes);
                         break;
                     case TreeMutationKind.SwapNodes:
                         SwapNodes(mutation.Id, mutation.OtherId, changes);
@@ -427,7 +427,7 @@ namespace TreeMotion
                 RefreshVisibleRow(newParent, changes);
         }
 
-        private void SetExpanded(TId id, bool isExpanded, List<TreeChange<TId>> changes)
+        private void Expanded(TId id, bool isExpanded, List<TreeChange<TId>> changes)
         {
             var node = GetNode(id);
             if (node.IsExpanded == isExpanded)
@@ -467,7 +467,7 @@ namespace TreeMotion
             }
         }
 
-        private void UpdateItem(TId id, TItem item, List<TreeChange<TId>> changes)
+        private void Update(TId id, TItem item, List<TreeChange<TId>> changes)
         {
             var node = GetNode(id);
             node.Item = item;

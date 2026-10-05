@@ -7,34 +7,16 @@ namespace TreeMotion
     {
         [SerializeField] private CanvasGroup _canvasGroup;
 
-        private float _initialAlpha;
-        private bool _initialized;
-
-        private void Awake()
-        {
-            Initialize();
-        }
-
-        private void Initialize()
-        {
-            if (_initialized) return;
-            if (_canvasGroup == null) _canvasGroup = GetComponent<CanvasGroup>();
-            _initialAlpha = _canvasGroup.alpha;
-            _initialized = true;
-        }
-
         public void ResetPresentation()
         {
-            Initialize();
-            _canvasGroup.alpha = _initialAlpha;
+            _canvasGroup.alpha = 1f;
         }
 
         public void SetTreeMotionPresentation(in TreeMotionPresentation presentation)
         {
-            Initialize();
-            var factor = presentation.Role == TreeMotionPresentationRole.Entering ? presentation.Progress :
+            var alpha = presentation.Role == TreeMotionPresentationRole.Entering ? presentation.Progress :
                 presentation.Role == TreeMotionPresentationRole.Exiting ? 1f - presentation.Progress : 1f;
-            _canvasGroup.alpha = _initialAlpha * factor;
+            _canvasGroup.alpha = alpha;
             _canvasGroup.blocksRaycasts = !presentation.IsAnimating;
         }
 

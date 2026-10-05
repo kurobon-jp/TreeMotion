@@ -30,7 +30,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 4976432735389124756}
+  m_Father: {fileID: 4965290914186180828}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
@@ -168,7 +168,7 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6526081366031546447}
-  m_Father: {fileID: 4976432735389124756}
+  m_Father: {fileID: 4965290914186180828}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
@@ -222,14 +222,11 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4976432735389124756}
-  - component: {fileID: 7418915468621256070}
-  - component: {fileID: 9106221821349380360}
-  - component: {fileID: 2813442557070017627}
   - component: {fileID: 8222449579992937886}
   - component: {fileID: 3972296663934497195}
   - component: {fileID: 6871105796140980894}
   m_Layer: 0
-  m_Name: ScrollViewTreeItem
+  m_Name: Item
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -247,8 +244,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1004705843182886248}
-  - {fileID: 2612744158002222656}
+  - {fileID: 4965290914186180828}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
@@ -256,21 +252,104 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 56}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!222 &7418915468621256070
-CanvasRenderer:
+--- !u!225 &8222449579992937886
+CanvasGroup:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7533941793191806402}
-  m_CullTransparentMesh: 1
---- !u!114 &9106221821349380360
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
+--- !u!114 &3972296663934497195
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7533941793191806402}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 658069e1b62e3144ab182c227dddef90, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TreeMotion.Samples.ScrollView.ScrollViewTreeSampleRow
+  _button: {fileID: 9038928173926052302}
+  _background: {fileID: 4850976472416992648}
+  _label: {fileID: 6746467612532114893}
+  _toggleLabel: {fileID: 3709239398374888180}
+  _visual: {fileID: 4965290914186180828}
+  _slideDistance: 120
+--- !u!114 &6871105796140980894
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7533941793191806402}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ab751448556214418c686b5120f3f78, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: TreeMotion::TreeMotion.TreeMotionFade
+  _canvasGroup: {fileID: 8222449579992937886}
+--- !u!1 &8298914724411545228
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4965290914186180828}
+  - component: {fileID: 6113813651979937406}
+  - component: {fileID: 4850976472416992648}
+  - component: {fileID: 9038928173926052302}
+  m_Layer: 0
+  m_Name: Visual
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &4965290914186180828
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8298914724411545228}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 2612744158002222656}
+  - {fileID: 1004705843182886248}
+  m_Father: {fileID: 4976432735389124756}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &6113813651979937406
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8298914724411545228}
+  m_CullTransparentMesh: 1
+--- !u!114 &4850976472416992648
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8298914724411545228}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
@@ -294,13 +373,13 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &2813442557070017627
+--- !u!114 &9038928173926052302
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7533941793191806402}
+  m_GameObject: {fileID: 8298914724411545228}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
@@ -334,51 +413,10 @@ MonoBehaviour:
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
   m_Interactable: 1
-  m_TargetGraphic: {fileID: 9106221821349380360}
+  m_TargetGraphic: {fileID: 4850976472416992648}
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
---- !u!225 &8222449579992937886
-CanvasGroup:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7533941793191806402}
-  m_Enabled: 1
-  m_Alpha: 1
-  m_Interactable: 1
-  m_BlocksRaycasts: 1
-  m_IgnoreParentGroups: 0
---- !u!114 &3972296663934497195
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7533941793191806402}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 658069e1b62e3144ab182c227dddef90, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TreeMotion.Samples.ScrollView.ScrollViewTreeSampleRow
-  _button: {fileID: 2813442557070017627}
-  _background: {fileID: 9106221821349380360}
-  _label: {fileID: 6746467612532114893}
-  _toggleLabel: {fileID: 3709239398374888180}
---- !u!114 &6871105796140980894
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7533941793191806402}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6ab751448556214418c686b5120f3f78, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: TreeMotion::TreeMotion.TreeMotionFade
-  _canvasGroup: {fileID: 8222449579992937886}
 --- !u!1 &8586649851461314079
 GameObject:
   m_ObjectHideFlags: 0

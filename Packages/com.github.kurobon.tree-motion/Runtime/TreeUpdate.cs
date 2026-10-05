@@ -45,15 +45,15 @@ namespace TreeMotion
             return this;
         }
 
-        public TreeUpdate<TId, TItem> SetExpanded(TId id, bool isExpanded)
+        public TreeUpdate<TId, TItem> Expanded(TId id, bool isExpanded)
         {
-            Add(TreeMutation<TId, TItem>.SetExpanded(id, isExpanded));
+            Add(TreeMutation<TId, TItem>.Expanded(id, isExpanded));
             return this;
         }
 
-        public TreeUpdate<TId, TItem> UpdateItem(TId id, TItem item)
+        public TreeUpdate<TId, TItem> Update(TId id, TItem item)
         {
-            Add(TreeMutation<TId, TItem>.UpdateItem(id, item));
+            Add(TreeMutation<TId, TItem>.Update(id, item));
             return this;
         }
 
@@ -85,8 +85,8 @@ namespace TreeMotion
         Insert,
         Remove,
         Move,
-        SetExpanded,
-        UpdateItem,
+        Expanded,
+        Update,
         SwapNodes
     }
 
@@ -135,12 +135,12 @@ namespace TreeMotion
             => new(TreeMutationKind.Move, id, parentId, default, default,
                 index, true, false);
 
-        internal static TreeMutation<TId, TItem> SetExpanded(TId id, bool isExpanded)
-            => new(TreeMutationKind.SetExpanded, id, default, default,
+        internal static TreeMutation<TId, TItem> Expanded(TId id, bool isExpanded)
+            => new(TreeMutationKind.Expanded, id, default, default,
                 default, -1, false, isExpanded);
 
-        internal static TreeMutation<TId, TItem> UpdateItem(TId id, TItem item)
-            => new(TreeMutationKind.UpdateItem, id, default, default, item,
+        internal static TreeMutation<TId, TItem> Update(TId id, TItem item)
+            => new(TreeMutationKind.Update, id, default, default, item,
                 -1, false, false);
 
         internal static TreeMutation<TId, TItem> SwapNodes(TId firstId, TId secondId)

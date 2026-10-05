@@ -179,7 +179,7 @@ namespace TreeMotion.Tests
 
             var insert = tree.BeginUpdate().Insert(1, 3, "inserted").Commit();
             var move = tree.BeginUpdate().MoveToRoot(2).Commit();
-            var update = tree.BeginUpdate().UpdateItem(3, "updated").Commit();
+            var update = tree.BeginUpdate().Update(3, "updated").Commit();
 
             AssertVisible(tree, (1, 0), (3, 1), (2, 0));
             Assert.That(tree.GetItem(3), Is.EqualTo("updated"));
@@ -208,7 +208,7 @@ namespace TreeMotion.Tests
         {
             var tree = CreateNestedTree();
 
-            var collapse = tree.BeginUpdate().SetExpanded(1, false).Commit();
+            var collapse = tree.BeginUpdate().Expanded(1, false).Commit();
 
             AssertVisible(tree, (1, 0));
             Assert.That(collapse.Count, Is.EqualTo(2));
@@ -216,7 +216,7 @@ namespace TreeMotion.Tests
             Assert.That(collapse[1].FromIndex, Is.EqualTo(1));
             Assert.That(collapse[1].Count, Is.EqualTo(3));
 
-            var expand = tree.BeginUpdate().SetExpanded(1, true).Commit();
+            var expand = tree.BeginUpdate().Expanded(1, true).Commit();
 
             AssertVisible(tree, (1, 0), (2, 1), (3, 1), (4, 2));
             Assert.That(expand[1].Kind, Is.EqualTo(TreeChangeKind.Insert));
@@ -328,12 +328,12 @@ namespace TreeMotion.Tests
         }
 
         [Test]
-        public void UpdateItem_PreservesIdentityAndReportsUpdate()
+        public void Update_PreservesIdentityAndReportsUpdate()
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate().InsertRoot(1, "before").Commit();
 
-            var changes = tree.BeginUpdate().UpdateItem(1, "after").Commit();
+            var changes = tree.BeginUpdate().Update(1, "after").Commit();
 
             Assert.That(tree.GetItem(1), Is.EqualTo("after"));
             Assert.That(tree.GetVisibleRow(0).Id, Is.EqualTo(1));

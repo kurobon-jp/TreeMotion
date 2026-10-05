@@ -35,23 +35,27 @@ namespace TreeMotion
         }
     }
 
-    public sealed class TreeMotionViewController<TId>
+    /// <summary>Connection to a ScrollView, exposing data application and animation completion.</summary>
+    public sealed class TreeMotionBinding<TId>
     {
-        private readonly ITreeMotionViewDriver<TId> _driver;
+        private readonly ITreeMotionBindingDriver<TId> _driver;
 
-        internal TreeMotionViewController(ITreeMotionViewDriver<TId> driver)
+        internal TreeMotionBinding(ITreeMotionBindingDriver<TId> driver)
         {
             _driver = driver;
         }
 
         public bool IsAnimating => _driver.IsAnimating;
         public void Reload() => _driver.Reload();
-        public void Apply(TreeChangeSet<TId> changes) => _driver.Apply(changes);
+        public void Apply(TreeChangeSet<TId> changes) => _driver.Apply(changes, null);
+        public void Apply(TreeChangeSet<TId> changes, float duration) => _driver.Apply(changes, duration);
         /// <summary>Waits for layout animation. A later Apply, Reload or disposal cancels the wait.
         /// Token cancellation cancels only the wait; an already started animation continues.
         /// Call on Unity's main thread. Independent presentation effects are not awaited.</summary>
         public Task ApplyAsync(TreeChangeSet<TId> changes, CancellationToken cancellationToken = default)
-            => _driver.ApplyAsync(changes, cancellationToken);
+            => _driver.ApplyAsync(changes, null, cancellationToken);
+        public Task ApplyAsync(TreeChangeSet<TId> changes, float duration, CancellationToken cancellationToken = default)
+            => _driver.ApplyAsync(changes, duration, cancellationToken);
         public void Refresh(TId id) => _driver.Refresh(id);
     }
 
@@ -62,15 +66,15 @@ namespace TreeMotion
         void Dispose();
     }
 
-    internal interface ITreeMotionViewDriver<TId> : ITreeMotionDriver
+    internal interface ITreeMotionBindingDriver<TId> : ITreeMotionDriver
     {
         void Reload();
-        void Apply(TreeChangeSet<TId> changes);
-        Task ApplyAsync(TreeChangeSet<TId> changes, CancellationToken cancellationToken);
+        void Apply(TreeChangeSet<TId> changes, float? duration);
+        Task ApplyAsync(TreeChangeSet<TId> changes, float? duration, CancellationToken cancellationToken);
         void Refresh(TId id);
     }
 
-    /// <summary>Stable-ID virtualization with per-type pools and whole Group prefabs.</summary>
+    /// <summary>Stable-ID virtualization with per-prefab pools and whole Group prefabs.</summary>
     public sealed class TreeMotionScrollView : MonoBehaviour
     {
         [SerializeField] private UnityEngine.UI.ScrollRect _scrollRect;
@@ -87,42 +91,49 @@ namespace TreeMotion
             _content = content;
         }
 
-        public TreeMotionViewController<TId> SetDataSource<TId, TItem>(TreeStore<TId, TItem> tree,
-            ITreeMotionDataSource<TId, TItem> source)
+        /// <summary>Connects data to this ScrollView and returns its operation handle.
+        /// Rebinding disposes the previous connection and cancels pending animation waits.</summary>
+        public TreeMotionBinding<TId> Bind<TId, TItem>(TreeStore<TId, TItem> tree,
+            ITreeMotionAdapter<TId, TItem> adapter)
         {
             if (_scrollRect == null || _viewport == null || _content == null)
                 throw new InvalidOperationException("Scroll view references are not assigned.");
             if (tree == null) throw new ArgumentNullException(nameof(tree));
-            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (adapter == null) throw new ArgumentNullException(nameof(adapter));
             ValidateNumber(_animationDuration, "AnimationDuration", true);
             _rootGroup = _content.GetComponent<TreeMotionGroupView>();
             if (_rootGroup == null) throw new InvalidOperationException("Content requires RootGroup.");
             _rootGroup.ValidatePrefab(true);
-            var driver = new Driver<TId, TItem>(this, tree, source);
+            var driver = new Driver<TId, TItem>(this, tree, adapter);
             driver.ValidateData();
             _driver?.Dispose();
             _driver = driver;
             driver.Reload();
             driver.Connect();
-            return new TreeMotionViewController<TId>(driver);
+            return new TreeMotionBinding<TId>(driver);
         }
 
-        private void Update() => _driver?.Tick(Time.unscaledDeltaTime);
+        private void Update() => _driver?.Tick(Time.deltaTime);
         private void OnDestroy() => _driver?.Dispose();
 
-        internal static void Position(RectTransform rect, float left, float right, float top, float height)
+        internal static void Position(RectTransform rect, Rect bounds, float left, float width, float top, float height)
         {
-            var parent = (RectTransform)rect.parent;
-            var bounds = parent.rect;
-            var width = bounds.width - left - right;
-            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
-            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            var min = rect.anchorMin;
+            var max = rect.anchorMax;
+            var pivot = rect.pivot;
+            var size = new Vector2(width - bounds.width * (max.x - min.x),
+                height - bounds.height * (max.y - min.y));
+            var currentSize = rect.sizeDelta;
+            if (currentSize.x != size.x || currentSize.y != size.y) rect.sizeDelta = size;
             var anchor = new Vector2(
-                Mathf.LerpUnclamped(rect.anchorMin.x, rect.anchorMax.x, rect.pivot.x),
-                Mathf.LerpUnclamped(rect.anchorMin.y, rect.anchorMax.y, rect.pivot.y));
-            rect.anchoredPosition = new Vector2(
-                left + width * rect.pivot.x - bounds.width * anchor.x,
-                bounds.height * (1f - anchor.y) - top - height * (1f - rect.pivot.y));
+                Mathf.LerpUnclamped(min.x, max.x, pivot.x),
+                Mathf.LerpUnclamped(min.y, max.y, pivot.y));
+            var position = new Vector2(
+                left + width * pivot.x - bounds.width * anchor.x,
+                bounds.height * (1f - anchor.y) - top - height * (1f - pivot.y));
+            var currentPosition = rect.anchoredPosition;
+            if (currentPosition.x != position.x || currentPosition.y != position.y)
+                rect.anchoredPosition = position;
         }
 
         internal static void ValidateNumber(float value, string name, bool positive = false)
@@ -131,42 +142,49 @@ namespace TreeMotion
                 throw new InvalidOperationException($"Invalid {name}.");
         }
 
-        private sealed class Driver<TId, TItem> : ITreeMotionViewDriver<TId>
+        private sealed class Driver<TId, TItem> : ITreeMotionBindingDriver<TId>
         {
             private sealed class Layout
             {
                 internal VisibleRow<TId> Row;
                 internal TItem Item;
-                internal int Type, Order;
-                internal TypeDefinition Definition;
+                internal int Order;
+                internal GameObject Prefab;
+                internal PrefabDefinition Definition;
                 internal float Top, Height, Left, Right;
                 internal Layout Parent;
-                internal bool Foreground;
+                internal bool Foreground, Exiting;
                 internal TreeMotionGroupView Group => Definition.Group;
 
                 internal float LeadingBottom =>
                     Top + (Group != null ? Group.FrameInsets.top : Height);
             }
 
-            private sealed class TypeDefinition
+            private static int CompareRender(Layout a, Layout b)
+            {
+                if (a.Foreground != b.Foreground) return a.Foreground ? 1 : -1;
+                if (a.Exiting != b.Exiting) return a.Exiting ? 1 : -1;
+                return a.Order.CompareTo(b.Order);
+            }
+
+            private sealed class PrefabDefinition
             {
                 internal GameObject Prefab;
                 internal TreeMotionGroupView Group;
-                internal float Height;
-                internal float WidthDelta, PositionX, AnchorMinX, AnchorMaxX, PivotX;
+                internal RectTransform Rect;
             }
 
             private sealed class Lease
             {
-                internal readonly int Type;
+                internal readonly GameObject Prefab;
                 internal readonly GameObject GameObject;
                 internal readonly RectTransform RectTransform;
                 internal readonly TreeMotionGroupView GroupView;
                 private readonly ITreeMotionPresentationHandler[] _handlers;
 
-                internal Lease(int type, GameObject go)
+                internal Lease(GameObject prefab, GameObject go)
                 {
-                    Type = type;
+                    Prefab = prefab;
                     GameObject = go;
                     RectTransform = (RectTransform)go.transform;
                     GroupView = go.GetComponent<TreeMotionGroupView>();
@@ -186,18 +204,19 @@ namespace TreeMotion
 
             private readonly TreeMotionScrollView _host;
             private readonly TreeStore<TId, TItem> _tree;
-            private readonly ITreeMotionDataSource<TId, TItem> _source;
+            private readonly ITreeMotionAdapter<TId, TItem> _adapter;
             private readonly TreeMotionAnimation<TId> _vertical, _horizontal;
-            private readonly Dictionary<int, TypeDefinition> _types = new();
-            private readonly Dictionary<int, Stack<Lease>> _available = new();
+            private readonly Dictionary<GameObject, PrefabDefinition> _definitions = new();
+            private readonly Dictionary<GameObject, Stack<Lease>> _available = new();
             private readonly Dictionary<TId, Layout> _byId;
             private readonly Dictionary<TId, Lease> _leased;
-            private readonly Dictionary<TId, int> _nodeTypes;
+            private readonly Dictionary<TId, GameObject> _nodePrefabs;
             private readonly HashSet<TId> _targets, _dirty, _renderIds, _foregroundRoots;
             private readonly List<Layout> _layouts = new();
             private readonly List<Layout> _groups = new();
             private readonly List<Layout> _render = new();
             private readonly List<Lease> _all = new();
+            private readonly List<Lease> _orderedViews = new();
             private readonly List<TId> _stale = new();
             private readonly Stack<Layout> _open = new();
             private readonly Stack<TId> _validation = new();
@@ -209,16 +228,16 @@ namespace TreeMotion
             private TaskCompletionSource<bool> _completion;
 
             internal Driver(TreeMotionScrollView host, TreeStore<TId, TItem> tree,
-                ITreeMotionDataSource<TId, TItem> source)
+                ITreeMotionAdapter<TId, TItem> adapter)
             {
                 _host = host;
                 _tree = tree;
-                _source = source;
+                _adapter = adapter;
                 _vertical = new TreeMotionAnimation<TId>(tree.Comparer);
                 _horizontal = new TreeMotionAnimation<TId>(tree.Comparer);
                 _byId = new Dictionary<TId, Layout>(tree.Comparer);
                 _leased = new Dictionary<TId, Lease>(tree.Comparer);
-                _nodeTypes = new Dictionary<TId, int>(tree.Comparer);
+                _nodePrefabs = new Dictionary<TId, GameObject>(tree.Comparer);
                 _targets = new HashSet<TId>(tree.Comparer);
                 _dirty = new HashSet<TId>(tree.Comparer);
                 _renderIds = new HashSet<TId>(tree.Comparer);
@@ -231,37 +250,32 @@ namespace TreeMotion
             internal void ValidateData()
             {
                 _validation.Clear();
-                _nodeTypes.Clear();
+                _nodePrefabs.Clear();
                 for (var i = 0; i < _tree.RootCount; i++) _validation.Push(_tree.GetRootId(i));
                 while (_validation.Count > 0)
                 {
                     var id = _validation.Pop();
-                    var type = _source.GetItemType(id, _tree.GetItem(id));
-                    if (!_types.TryGetValue(type, out var definition))
+                    var prefab = _adapter.GetItemPrefab(id, _tree.GetItem(id));
+                    if (prefab == null || !(prefab.transform is RectTransform))
+                        throw new InvalidOperationException($"Node '{id}' requires a RectTransform prefab.");
+                    if (!_definitions.TryGetValue(prefab, out var definition))
                     {
-                        var prefab = _source.GetItemPrefab(type);
-                        if (prefab == null || !(prefab.transform is RectTransform))
-                            throw new InvalidOperationException($"ItemType {type} requires a RectTransform prefab.");
                         var group = prefab.GetComponent<TreeMotionGroupView>();
-                        var height = group == null ? _source.GetItemHeight(type) : 0f;
-                        if (group == null) ValidateNumber(height, "ItemHeight", true);
                         if (prefab.GetComponentInChildren<Canvas>(true) != null)
                             throw new InvalidOperationException("Node prefabs must use the scroll view's Canvas.");
                         group?.ValidatePrefab();
                         var rect = (RectTransform)prefab.transform;
-                        definition = new TypeDefinition
+                        definition = new PrefabDefinition
                         {
-                            Prefab = prefab, Height = height, Group = group,
-                            WidthDelta = rect.sizeDelta.x, PositionX = rect.anchoredPosition.x,
-                            AnchorMinX = rect.anchorMin.x, AnchorMaxX = rect.anchorMax.x, PivotX = rect.pivot.x
+                            Prefab = prefab, Rect = rect, Group = group
                         };
-                        _types.Add(type, definition);
+                        _definitions.Add(prefab, definition);
                     }
 
                     var children = _tree.GetChildCount(id);
                     if (children > 0 && definition.Group == null)
-                        throw new InvalidOperationException($"Node '{id}' has children but its ItemType is not Group.");
-                    _nodeTypes.Add(id, type);
+                        throw new InvalidOperationException($"Node '{id}' has children but its prefab has no TreeMotionGroupView.");
+                    _nodePrefabs.Add(id, prefab);
                     for (var i = 0; i < children; i++) _validation.Push(_tree.GetChildId(id, i));
                 }
             }
@@ -284,10 +298,12 @@ namespace TreeMotion
                 RefreshVisibleViews();
             }
 
-            public void Apply(TreeChangeSet<TId> changes)
+            public void Apply(TreeChangeSet<TId> changes, float? duration)
             {
                 ThrowIfDisposed();
                 if (changes == null) throw new ArgumentNullException(nameof(changes));
+                var seconds = duration ?? _host._animationDuration;
+                ValidateNumber(seconds, "AnimationDuration");
                 CancelCompletion();
                 if (changes.Count == 0) return;
                 ValidateData();
@@ -304,17 +320,29 @@ namespace TreeMotion
                 }
                 BuildLayout();
                 _heightFrom = _host._content.rect.height;
-                _vertical.Retarget(_verticalTargets, _host._animationDuration, changes);
-                _horizontal.Retarget(_horizontalTargets, _host._animationDuration, changes);
+                if (seconds == 0f)
+                {
+                    _vertical.Snap(_verticalTargets);
+                    _horizontal.Snap(_horizontalTargets);
+                    SetHeight(_heightTo);
+                    _heightFrom = _heightTo;
+                    _foregroundRoots.Clear();
+                    RefreshVisibleViews();
+                    CompleteTransition();
+                    return;
+                }
+                _vertical.Retarget(_verticalTargets, seconds, changes);
+                _horizontal.Retarget(_horizontalTargets, seconds, changes);
                 RefreshVisibleViews();
             }
 
-            public Task ApplyAsync(TreeChangeSet<TId> changes, CancellationToken cancellationToken)
+            public Task ApplyAsync(TreeChangeSet<TId> changes, float? duration, CancellationToken cancellationToken)
             {
                 ThrowIfDisposed();
                 if (changes == null) throw new ArgumentNullException(nameof(changes));
+                ValidateNumber(duration ?? _host._animationDuration, "AnimationDuration");
                 if (cancellationToken.IsCancellationRequested) return Task.FromCanceled(cancellationToken);
-                Apply(changes);
+                Apply(changes, duration);
                 if (changes.Count == 0 || !IsAnimating) return Task.CompletedTask;
                 _completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 return cancellationToken.CanBeCanceled
@@ -364,11 +392,11 @@ namespace TreeMotion
 
                     if (previous != null && previous.Row.Depth >= row.Depth)
                         y += _open.Count == 0 ? _host._rootGroup.ChildrenSpacing : _open.Peek().Group.ChildrenSpacing;
-                    var type = _nodeTypes[row.Id];
-                    var definition = _types[type];
+                    var prefab = _nodePrefabs[row.Id];
+                    var definition = _definitions[prefab];
                     var layout = new Layout
                     {
-                        Row = row, Item = _tree.GetItem(row.Id), Type = type, Definition = definition, Order = i,
+                        Row = row, Item = _tree.GetItem(row.Id), Prefab = prefab, Definition = definition, Order = i,
                         Top = y, Left = _host._rootGroup.ChildrenPadding.left, Right = _host._rootGroup.ChildrenPadding.right
                     };
                     if (_open.Count > 0)
@@ -381,12 +409,13 @@ namespace TreeMotion
                     }
 
                     var regionWidth = Mathf.Max(0f, _layoutWidth - layout.Left - layout.Right);
-                    var width = Mathf.Max(0f, regionWidth * (definition.AnchorMaxX - definition.AnchorMinX) + definition.WidthDelta);
-                    var pivotX = layout.Left + regionWidth * Mathf.LerpUnclamped(definition.AnchorMinX, definition.AnchorMaxX, definition.PivotX) + definition.PositionX;
-                    layout.Left = pivotX - width * definition.PivotX;
+                    var rect = definition.Rect;
+                    var width = Mathf.Max(0f, regionWidth * (rect.anchorMax.x - rect.anchorMin.x) + rect.sizeDelta.x);
+                    var pivotX = layout.Left + regionWidth * Mathf.LerpUnclamped(rect.anchorMin.x, rect.anchorMax.x, rect.pivot.x) + rect.anchoredPosition.x;
+                    layout.Left = pivotX - width * rect.pivot.x;
                     layout.Right = _layoutWidth - layout.Left - width;
 
-                    if (_byId.TryGetValue(row.Id, out var old) && (old.Type != type || !SameRow(old.Row, row)))
+                    if (_byId.TryGetValue(row.Id, out var old) && (old.Prefab != prefab || !SameRow(old.Row, row)))
                         _dirty.Add(row.Id);
                     _byId[row.Id] = layout;
                     _layouts.Add(layout);
@@ -405,7 +434,8 @@ namespace TreeMotion
                     }
                     else
                     {
-                        layout.Height = definition.Height;
+                        layout.Height = _adapter.GetItemSize(row.Id, layout.Item);
+                        ValidateNumber(layout.Height, "ItemSize", true);
                         y += layout.Height;
                     }
 
@@ -441,21 +471,24 @@ namespace TreeMotion
                 SetHeight(Mathf.LerpUnclamped(_heightFrom, _heightTo, p));
                 RefreshVisibleViews();
                 if (!IsAnimating)
+                    CompleteTransition();
+            }
+
+            private void CompleteTransition()
+            {
+                _foregroundRoots.Clear();
+                _stale.Clear();
+                foreach (var pair in _byId)
+                    if (!_targets.Contains(pair.Key))
+                        _stale.Add(pair.Key);
+                foreach (var id in _stale)
                 {
-                    _foregroundRoots.Clear();
-                    _stale.Clear();
-                    foreach (var pair in _byId)
-                        if (!_targets.Contains(pair.Key))
-                            _stale.Add(pair.Key);
-                    foreach (var id in _stale)
-                    {
-                        _byId.Remove(id);
-                        _dirty.Remove(id);
-                    }
-                    var completion = _completion;
-                    _completion = null;
-                    completion?.TrySetResult(true);
+                    _byId.Remove(id);
+                    _dirty.Remove(id);
                 }
+                var completion = _completion;
+                _completion = null;
+                completion?.TrySetResult(true);
             }
 
             private void RefreshWidth()
@@ -514,6 +547,7 @@ namespace TreeMotion
 
                 foreach (var layout in _render)
                 {
+                    layout.Exiting = !_targets.Contains(layout.Row.Id);
                     layout.Foreground = false;
                     for (var ancestor = layout; ancestor != null; ancestor = ancestor.Parent)
                         if (IsAnimating && _foregroundRoots.Contains(ancestor.Row.Id))
@@ -523,14 +557,7 @@ namespace TreeMotion
                         }
                 }
 
-                _render.Sort((a, b) =>
-                {
-                    var aExit = !_targets.Contains(a.Row.Id);
-                    var bExit = !_targets.Contains(b.Row.Id);
-                    if (a.Foreground != b.Foreground) return a.Foreground ? 1 : -1;
-                    if (aExit != bExit) return aExit ? 1 : -1;
-                    return a.Order.CompareTo(b.Order);
-                });
+                SortRender();
                 _stale.Clear();
                 foreach (var pair in _leased)
                     if (!_renderIds.Contains(pair.Key))
@@ -541,11 +568,13 @@ namespace TreeMotion
                     _leased.Remove(id);
                 }
 
+                var bounds = _host._content.rect;
+                _orderedViews.Clear();
                 foreach (var layout in _render)
                 {
                     var id = layout.Row.Id;
                     var needsBind = _dirty.Remove(id);
-                    if (_leased.TryGetValue(id, out var lease) && lease.Type != layout.Type)
+                    if (_leased.TryGetValue(id, out var lease) && lease.Prefab != layout.Prefab)
                     {
                         Release(lease);
                         _leased.Remove(id);
@@ -553,17 +582,17 @@ namespace TreeMotion
 
                     if (!_leased.TryGetValue(id, out lease))
                     {
-                        if (!_available.TryGetValue(layout.Type, out var pool))
+                        if (!_available.TryGetValue(layout.Prefab, out var pool))
                         {
                             pool = new Stack<Lease>();
-                            _available.Add(layout.Type, pool);
+                            _available.Add(layout.Prefab, pool);
                         }
 
                         Lease view;
                         if (pool.Count > 0) view = pool.Pop();
                         else
                         {
-                            view = new Lease(layout.Type, Instantiate(layout.Definition.Prefab,
+                            view = new Lease(layout.Prefab, Instantiate(layout.Definition.Prefab,
                                 _host._content));
                             _all.Add(view);
                         }
@@ -576,11 +605,10 @@ namespace TreeMotion
                     }
 
                     if (needsBind)
-                        _source.Bind(lease.GameObject, id, layout.Item, layout.Row);
+                        _adapter.Bind(lease.GameObject, id, layout.Item, layout.Row);
                     _vertical.TryGetValue(id, out var vertical);
                     _horizontal.TryGetValue(id, out var horizontal);
-                    Position(lease.RectTransform, horizontal.Offset,
-                        _host._content.rect.width - horizontal.Offset - horizontal.Size, vertical.Offset, vertical.Size);
+                    Position(lease.RectTransform, bounds, horizontal.Offset, horizontal.Size, vertical.Offset, vertical.Size);
                     if (lease.GroupView != null)
                         lease.GroupView.SetGeometry(vertical.Size);
                     var role = vertical.Kind == TreeMotionAnimationKind.Remove ? TreeMotionPresentationRole.Exiting :
@@ -588,24 +616,77 @@ namespace TreeMotion
                         TreeMotionPresentationRole.Current;
                     lease.Present(new TreeMotionPresentation(vertical.Kind, role, vertical.Progress,
                         vertical.IsAnimating));
-                    lease.RectTransform.SetAsLastSibling();
-                    lease.GameObject.SetActive(true);
+                    _orderedViews.Add(lease);
+                    if (!lease.GameObject.activeSelf) lease.GameObject.SetActive(true);
                 }
+                // All leases exist now; inactive pooled views stay before the visible draw order.
+                var firstSibling = _host._content.childCount - _orderedViews.Count;
+                for (var i = _orderedViews.Count - 1; i >= 0; i--)
+                {
+                    var rect = _orderedViews[i].RectTransform;
+                    var sibling = firstSibling + i;
+                    if (rect.GetSiblingIndex() != sibling) rect.SetSiblingIndex(sibling);
+                }
+            }
+
+            private void SortRender()
+            {
+                // Avoid List.Sort's runtime comparer/delegate allocations (visible in Deep Profile).
+                // Insertion sort handles small visible sets; heap sort bounds larger sets to O(n log n).
+                if (_render.Count <= 16)
+                {
+                    for (var i = 1; i < _render.Count; i++)
+                    {
+                        var value = _render[i];
+                        var j = i - 1;
+                        while (j >= 0 && CompareRender(_render[j], value) > 0)
+                        {
+                            _render[j + 1] = _render[j];
+                            j--;
+                        }
+                        _render[j + 1] = value;
+                    }
+                    return;
+                }
+                for (var i = _render.Count / 2 - 1; i >= 0; i--)
+                    SiftRenderDown(i, _render.Count);
+                for (var end = _render.Count - 1; end > 0; end--)
+                {
+                    (_render[0], _render[end]) = (_render[end], _render[0]);
+                    SiftRenderDown(0, end);
+                }
+            }
+
+            private void SiftRenderDown(int root, int count)
+            {
+                var value = _render[root];
+                while (root < count / 2)
+                {
+                    var child = root * 2 + 1;
+                    if (child + 1 < count && CompareRender(_render[child], _render[child + 1]) < 0) child++;
+                    if (CompareRender(value, _render[child]) >= 0) break;
+                    _render[root] = _render[child];
+                    root = child;
+                }
+                _render[root] = value;
             }
 
             private void Release(Lease lease)
             {
                 lease.GameObject.SetActive(false);
                 lease.Reset();
-                _available[lease.Type].Push(lease);
+                _available[lease.Prefab].Push(lease);
             }
 
-            private void SetHeight(float height) =>
-                _host._content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            private void SetHeight(float height)
+            {
+                if (_host._content.rect.height != height)
+                    _host._content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            }
 
             private void ThrowIfDisposed()
             {
-                if (_disposed) throw new ObjectDisposedException(nameof(TreeMotionViewController<TId>));
+                if (_disposed) throw new ObjectDisposedException(nameof(TreeMotionBinding<TId>));
             }
 
             private static bool SameRow(VisibleRow<TId> a, VisibleRow<TId> b) => a.Depth == b.Depth &&
@@ -627,6 +708,7 @@ namespace TreeMotion
                     }
 
                 _all.Clear();
+                _orderedViews.Clear();
                 _leased.Clear();
                 _available.Clear();
                 _foregroundRoots.Clear();

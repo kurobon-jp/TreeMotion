@@ -43,7 +43,8 @@ namespace TreeMotion
         {
             if (_childrenFrame == RectTransform) return;
             var insets = FrameInsets;
-            _childrenFrame.gameObject.SetActive(totalHeight > insets.top + insets.bottom + 0.001f);
+            var active = totalHeight > insets.top + insets.bottom + 0.001f;
+            if (_childrenFrame.gameObject.activeSelf != active) _childrenFrame.gameObject.SetActive(active);
         }
 
         internal void ValidatePrefab(bool root = false)
