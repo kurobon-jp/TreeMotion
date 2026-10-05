@@ -21,18 +21,8 @@
   "samples": [
     {
       "displayName": "ScrollView Tree Sample",
-      "description": "TreeMotionScrollView with nested rows and random insert, move, update, swap, and remove animations.",
+      "description": "Repeatable TreeMotionScrollView showcase with nested Groups, expand/collapse, move, swap, insert, update, and remove animations.",
       "path": "Samples~/ScrollView Tree Sample"
-    },
-    {
-      "displayName": "Basic Tree Sample",
-      "description": "Minimal snapshot loading, prefab binding, pooling, and expand/collapse animation.",
-      "path": "Samples~/Basic Tree Sample"
-    },
-    {
-      "displayName": "Advanced TreeMotion Sample",
-      "description": "Nested group cards, structural editing, and pooled viewport rendering.",
-      "path": "Samples~/TreeMotion Sample"
     }
   ]
 }
