@@ -26,7 +26,7 @@ Unique IDs identify data, and views are reused per prefab.
 In Unity's Package Manager, select **Add package from git URL** and enter:
 
 ```text
-https://github.com/kurobon-jp/TreeMotion.git?path=Assets/
+https://github.com/kurobon-jp/TreeMotion.git?path=Packages/com.github.kurobon.tree-motion/
 ```
 
 ## Set up a ScrollView
