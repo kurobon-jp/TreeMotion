@@ -1,6 +1,6 @@
 {
   "name": "com.github.kurobon.tree-motion",
-  "displayName": "TreeMotion",
+  "displayName": "Tree Motion",
   "version": "0.1.0",
   "unity": "2022.1",
   "description": "A virtualized, animated tree view for Unity uGUI.",
