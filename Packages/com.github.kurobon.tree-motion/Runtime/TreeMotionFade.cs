@@ -7,12 +7,12 @@ namespace TreeMotion
     {
         [SerializeField] private CanvasGroup _canvasGroup;
 
-        public void ResetPresentation()
+        public void Clear()
         {
             _canvasGroup.alpha = 1f;
         }
 
-        public void ApplyPresentation(in TreeMotionPresentation presentation)
+        public void Apply(in TreeMotionPresentation presentation)
         {
             var alpha = presentation.Role == TreeMotionPresentationRole.Entering ? presentation.Progress :
                 presentation.Role == TreeMotionPresentationRole.Exiting ? 1f - presentation.Progress : 1f;

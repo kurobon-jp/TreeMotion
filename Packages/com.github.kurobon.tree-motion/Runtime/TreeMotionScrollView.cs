@@ -206,12 +206,12 @@ namespace TreeMotion
 
                 internal void Reset()
                 {
-                    foreach (var handler in _handlers) handler.ResetPresentation();
+                    foreach (var handler in _handlers) handler.Clear();
                 }
 
                 internal void Present(in TreeMotionPresentation presentation)
                 {
-                    foreach (var handler in _handlers) handler.ApplyPresentation(presentation);
+                    foreach (var handler in _handlers) handler.Apply(presentation);
                 }
             }
 

@@ -13,7 +13,7 @@ namespace TreeMotion
 
     public interface ITreeMotionPresentationHandler
     {
-        void ResetPresentation();
-        void ApplyPresentation(in TreeMotionPresentation presentation);
+        void Clear();
+        void Apply(in TreeMotionPresentation presentation);
     }
 }
