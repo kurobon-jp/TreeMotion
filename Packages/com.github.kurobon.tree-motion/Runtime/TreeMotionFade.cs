@@ -12,7 +12,7 @@ namespace TreeMotion
             _canvasGroup.alpha = 1f;
         }
 
-        public void SetTreeMotionPresentation(in TreeMotionPresentation presentation)
+        public void ApplyPresentation(in TreeMotionPresentation presentation)
         {
             var alpha = presentation.Role == TreeMotionPresentationRole.Entering ? presentation.Progress :
                 presentation.Role == TreeMotionPresentationRole.Exiting ? 1f - presentation.Progress : 1f;

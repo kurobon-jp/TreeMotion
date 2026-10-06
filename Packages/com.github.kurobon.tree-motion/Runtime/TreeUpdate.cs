@@ -14,9 +14,9 @@ namespace TreeMotion
             _store = store;
         }
 
-        public TreeUpdate<TId, TItem> InsertRoot(TId id, TItem item, int index = -1, bool isExpanded = true)
+        public TreeUpdate<TId, TItem> Insert(TId id, TItem item, int index = -1, bool isExpanded = true)
         {
-            Add(TreeMutation<TId, TItem>.InsertRoot(id, item, index, isExpanded));
+            Add(TreeMutation<TId, TItem>.Insert(id, item, index, isExpanded));
             return this;
         }
 
@@ -45,9 +45,9 @@ namespace TreeMotion
             return this;
         }
 
-        public TreeUpdate<TId, TItem> Expanded(TId id, bool isExpanded)
+        public TreeUpdate<TId, TItem> Expand(TId id, bool isExpanded)
         {
-            Add(TreeMutation<TId, TItem>.Expanded(id, isExpanded));
+            Add(TreeMutation<TId, TItem>.Expand(id, isExpanded));
             return this;
         }
 
@@ -86,7 +86,7 @@ namespace TreeMotion
         Insert,
         Remove,
         Move,
-        Expanded,
+        Expand,
         Update,
         Swap
     }
@@ -115,7 +115,7 @@ namespace TreeMotion
             IsExpanded = isExpanded;
         }
 
-        internal static TreeMutation<TId, TItem> InsertRoot(TId id, TItem item, int index, bool isExpanded)
+        internal static TreeMutation<TId, TItem> Insert(TId id, TItem item, int index, bool isExpanded)
             => new(TreeMutationKind.Insert, id, default, default, item,
                 index, false, isExpanded);
 
@@ -136,8 +136,8 @@ namespace TreeMotion
             => new(TreeMutationKind.Move, id, parentId, default, default,
                 index, true, false);
 
-        internal static TreeMutation<TId, TItem> Expanded(TId id, bool isExpanded)
-            => new(TreeMutationKind.Expanded, id, default, default,
+        internal static TreeMutation<TId, TItem> Expand(TId id, bool isExpanded)
+            => new(TreeMutationKind.Expand, id, default, default,
                 default, -1, false, isExpanded);
 
         internal static TreeMutation<TId, TItem> Update(TId id, TItem item)

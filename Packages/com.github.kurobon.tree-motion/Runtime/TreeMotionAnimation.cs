@@ -209,7 +209,7 @@ namespace TreeMotion
                         ToSize = current.Size,
                         FromProgress = current.Kind == TreeMotionAnimationKind.Insert
                             ? 1f - current.Progress
-                            : 0f,
+                            : current.Kind == TreeMotionAnimationKind.Remove ? current.Progress : 0f,
                         ToProgress = 1f,
                         Kind = TreeMotionAnimationKind.Remove,
                         HasTarget = false

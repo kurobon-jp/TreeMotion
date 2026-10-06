@@ -17,7 +17,7 @@ namespace TreeMotion.Tests
             Resets++;
             transform.localScale = Vector3.one;
         }
-        public void SetTreeMotionPresentation(in TreeMotionPresentation presentation)
+        public void ApplyPresentation(in TreeMotionPresentation presentation)
         {
             Presentation = presentation;
             transform.localScale = presentation.Role == TreeMotionPresentationRole.Exiting ? Vector3.one * 0.9f : Vector3.one;
@@ -115,6 +115,45 @@ namespace TreeMotion.Tests
         private void Tick(float time = 1f) => _scrollView.Tick(time);
         private void Viewport(float height) => _scrollRect.viewport.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
 
+        [Test]
+        public void Reload_PreservesViewsByIdAndRebindsAfterSnapshotReorder()
+        {
+            Viewport(500f);
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"));
+            var first = _adapter.Views[1];
+            var second = _adapter.Views[2];
+            var firstBinds = _adapter.Binds[1];
+            var secondBinds = _adapter.Binds[2];
+            _tree.LoadSnapshot(new[] { new TreeNodeRecord<int, string>(2, "Updated two"), new TreeNodeRecord<int, string>(1, "Updated one") });
+
+            _binding.Reload();
+
+            Assert.That(_adapter.Views[1], Is.SameAs(first));
+            Assert.That(_adapter.Views[2], Is.SameAs(second));
+            Assert.That(_adapter.Binds[1], Is.EqualTo(firstBinds + 1));
+            Assert.That(_adapter.Binds[2], Is.EqualTo(secondBinds + 1));
+            Assert.That(first.GetComponent<RectTransform>().anchoredPosition.y,
+                Is.LessThan(second.GetComponent<RectTransform>().anchoredPosition.y));
+        }
+
+        [Test]
+        public void Reload_ReplacesChangedPrefabAndReleasesRemovedView()
+        {
+            Viewport(500f);
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"));
+            var first = _adapter.Views[1];
+            var removed = _adapter.Views[2];
+            _adapter.Prefabs[1] = Rect("OtherPrefab", _root.transform).gameObject;
+            _adapter.Types[1] = 1;
+            _tree.LoadSnapshot(new[] { new TreeNodeRecord<int, string>(1, "Changed") });
+
+            _binding.Reload();
+
+            Assert.That(_adapter.Views[1], Is.Not.SameAs(first));
+            Assert.That(first.activeSelf, Is.False);
+            Assert.That(removed.activeSelf, Is.False);
+        }
+
         [TestCase(12)]
         [TestCase(256)]
         public void SteadyAnimationRefresh_DoesNotAllocateManagedMemory(int itemCount)
@@ -150,7 +189,7 @@ namespace TreeMotion.Tests
             Assert.That(removed.activeSelf, Is.False);
             Assert.That(removed.transform.GetSiblingIndex(), Is.LessThan(_adapter.Views[2].transform.GetSiblingIndex()));
             Assert.That(_adapter.Views[2].transform.GetSiblingIndex(), Is.LessThan(_adapter.Views[3].transform.GetSiblingIndex()));
-            _binding.Apply(_tree.BeginUpdate().InsertRoot(4, "Four", 0).Commit(), duration: 0f);
+            _binding.Apply(_tree.BeginUpdate().Insert(4, "Four", 0).Commit(), duration: 0f);
             Assert.That(_adapter.Views[4], Is.SameAs(removed));
             Assert.That(_adapter.Views[4].transform.GetSiblingIndex(), Is.LessThan(_adapter.Views[2].transform.GetSiblingIndex()));
             Assert.That(_adapter.Views[2].transform.GetSiblingIndex(), Is.LessThan(_adapter.Views[3].transform.GetSiblingIndex()));
@@ -160,7 +199,7 @@ namespace TreeMotion.Tests
         public void ApplyAsync_CompletesAfterFinalFrame()
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));
-            var task = _binding.ApplyAsync(_tree.BeginUpdate().InsertRoot(2, "Two").Commit());
+            var task = _binding.ApplyAsync(_tree.BeginUpdate().Insert(2, "Two").Commit());
             Assert.That(task.IsCompleted, Is.False);
             Tick(.1f);
             Assert.That(task.IsCompleted, Is.False);
@@ -175,7 +214,7 @@ namespace TreeMotion.Tests
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));
             var previous = _binding;
-            var pending = previous.ApplyAsync(_tree.BeginUpdate().InsertRoot(2, "Two").Commit());
+            var pending = previous.ApplyAsync(_tree.BeginUpdate().Insert(2, "Two").Commit());
             _binding = _scrollView.Bind(_tree, _adapter);
             Assert.That(pending.IsCanceled, Is.True);
             Assert.Throws<ObjectDisposedException>(() => previous.Refresh(1));
@@ -206,7 +245,7 @@ namespace TreeMotion.Tests
         public void Apply_CustomDurationOverridesDefaultForOneOperation(bool asynchronous)
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));
-            var changes = _tree.BeginUpdate().InsertRoot(2, "Two").Commit();
+            var changes = _tree.BeginUpdate().Insert(2, "Two").Commit();
             Task completion = null;
             if (asynchronous)
                 completion = _binding.ApplyAsync(changes, duration: 1f);
@@ -230,7 +269,7 @@ namespace TreeMotion.Tests
         public void Apply_ZeroDurationImmediatelyReflectsInsertAndRemove(bool asynchronous)
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));
-            var changes = _tree.BeginUpdate().InsertRoot(2, "Two").Commit();
+            var changes = _tree.BeginUpdate().Insert(2, "Two").Commit();
             if (asynchronous)
                 Assert.That(_binding.ApplyAsync(changes, duration: 0f).Status, Is.EqualTo(TaskStatus.RanToCompletion));
             else
@@ -256,7 +295,7 @@ namespace TreeMotion.Tests
         public void Apply_InvalidDurationDoesNotInterruptExistingWait(float duration)
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));
-            var pending = _binding.ApplyAsync(_tree.BeginUpdate().InsertRoot(2, "Two").Commit());
+            var pending = _binding.ApplyAsync(_tree.BeginUpdate().Insert(2, "Two").Commit());
             var empty = _tree.BeginUpdate().Commit();
             Assert.Throws<InvalidOperationException>(() => _binding.Apply(empty, duration));
             Assert.Throws<InvalidOperationException>(() => _binding.ApplyAsync(empty, duration));
@@ -282,7 +321,7 @@ namespace TreeMotion.Tests
         public void ApplyAsync_ReplacementCancelsPreviousWait(string operation)
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));
-            var previous = _binding.ApplyAsync(_tree.BeginUpdate().InsertRoot(2, "Two").Commit());
+            var previous = _binding.ApplyAsync(_tree.BeginUpdate().Insert(2, "Two").Commit());
             switch (operation)
             {
                 case "Apply":
@@ -309,7 +348,7 @@ namespace TreeMotion.Tests
             Load(new TreeNodeRecord<int, string>(1, "One"));
             using (var cancellation = new CancellationTokenSource())
             {
-                var task = _binding.ApplyAsync(_tree.BeginUpdate().InsertRoot(2, "Two").Commit(), cancellation.Token);
+                var task = _binding.ApplyAsync(_tree.BeginUpdate().Insert(2, "Two").Commit(), cancellation.Token);
                 cancellation.Cancel();
                 try
                 {
@@ -331,7 +370,7 @@ namespace TreeMotion.Tests
             using (var cancellation = new CancellationTokenSource())
             {
                 cancellation.Cancel();
-                var task = _binding.ApplyAsync(_tree.BeginUpdate().InsertRoot(2, "Two").Commit(), cancellation.Token);
+                var task = _binding.ApplyAsync(_tree.BeginUpdate().Insert(2, "Two").Commit(), cancellation.Token);
                 Assert.That(task.IsCanceled, Is.True);
                 Assert.That(_binding.IsAnimating, Is.False);
                 Assert.That(_adapter.Views.ContainsKey(2), Is.False);
@@ -391,7 +430,7 @@ namespace TreeMotion.Tests
             Assert.That(original.GetComponent<RectTransform>().rect.height, Is.EqualTo(80f));
             _binding.Apply(_tree.BeginUpdate().Remove(1).Commit());
             Tick();
-            _binding.Apply(_tree.BeginUpdate().InsertRoot(2, "Other card").Commit());
+            _binding.Apply(_tree.BeginUpdate().Insert(2, "Other card").Commit());
             Assert.That(_adapter.Views[2], Is.SameAs(original));
         }
 
@@ -429,17 +468,17 @@ namespace TreeMotion.Tests
             Load(new TreeNodeRecord<int, string>(1, "Group", isExpanded: true),
                 new TreeNodeRecord<int, string>(2, "Nested", parentId: 1, isExpanded: true),
                 new TreeNodeRecord<int, string>(3, "Child", parentId: 2));
-            _binding.Apply(_tree.BeginUpdate().Expanded(1, false).Commit());
+            _binding.Apply(_tree.BeginUpdate().Expand(1, false).Commit());
             var child = _adapter.Views[3].GetComponent<TestTreeMotionItemView>();
             Assert.That(child.Presentation.Role, Is.EqualTo(TreeMotionPresentationRole.Exiting));
             Assert.That(child.Presentation.Cause, Is.EqualTo(TreeChangeKind.Collapse));
             Tick();
-            _binding.Apply(_tree.BeginUpdate().Expanded(1, true).Commit());
+            _binding.Apply(_tree.BeginUpdate().Expand(1, true).Commit());
             child = _adapter.Views[3].GetComponent<TestTreeMotionItemView>();
             Assert.That(child.Presentation.Role, Is.EqualTo(TreeMotionPresentationRole.Entering));
             Assert.That(child.Presentation.Cause, Is.EqualTo(TreeChangeKind.Expand));
             Tick(0.05f);
-            _binding.Apply(_tree.BeginUpdate().InsertRoot(4, "Other").Commit());
+            _binding.Apply(_tree.BeginUpdate().Insert(4, "Other").Commit());
             Assert.That(child.Presentation.Cause, Is.EqualTo(TreeChangeKind.Expand));
             Tick();
             Assert.That(child.Presentation.Cause, Is.EqualTo(null));
@@ -487,7 +526,7 @@ namespace TreeMotion.Tests
             Assert.That(leaf.GetComponent<RectTransform>().offsetMin.x, Is.GreaterThan(nested.GetComponent<RectTransform>().offsetMin.x));
             Assert.That(parent.transform.GetSiblingIndex(), Is.LessThan(nested.transform.GetSiblingIndex()));
             var height = _content.rect.height;
-            _binding.Apply(_tree.BeginUpdate().Expanded(1, false).Commit());
+            _binding.Apply(_tree.BeginUpdate().Expand(1, false).Commit());
             Assert.That(parent.ChildrenFrame.gameObject.activeSelf, Is.True);
             Assert.That(leaf.activeSelf, Is.True);
             Tick();
@@ -615,10 +654,10 @@ namespace TreeMotion.Tests
             Viewport(500f);
             Load(new TreeNodeRecord<int, string>(1, "Group", isExpanded: true), new TreeNodeRecord<int, string>(2, "Item", parentId: 1));
             var group = _adapter.Views[1];
-            _binding.Apply(_tree.BeginUpdate().Expanded(1, false).Commit());
+            _binding.Apply(_tree.BeginUpdate().Expand(1, false).Commit());
             Tick(0.1f);
             var height = group.GetComponent<RectTransform>().rect.height;
-            _binding.Apply(_tree.BeginUpdate().Expanded(1, true).Commit());
+            _binding.Apply(_tree.BeginUpdate().Expand(1, true).Commit());
             Assert.That(group.GetComponent<RectTransform>().rect.height, Is.EqualTo(height).Within(0.01f));
             Tick();
             Assert.That(_adapter.Views[2].activeSelf, Is.True);
@@ -676,7 +715,7 @@ namespace TreeMotion.Tests
             prefab.AddComponent<TreeMotionFade>();
             Load(new TreeNodeRecord<int, string>(1, "One"));
             var original = _adapter.Views[1];
-            _binding.Apply(_tree.BeginUpdate().InsertRoot(2, "Two").Commit());
+            _binding.Apply(_tree.BeginUpdate().Insert(2, "Two").Commit());
             var entering = _adapter.Views[2].GetComponent<CanvasGroup>();
             Assert.That(entering.alpha, Is.Zero);
             Assert.That(entering.blocksRaycasts, Is.False);
@@ -690,7 +729,7 @@ namespace TreeMotion.Tests
             Assert.That(original.GetComponent<CanvasGroup>().blocksRaycasts, Is.False);
             Tick();
             Assert.That(original.GetComponent<CanvasGroup>().alpha, Is.EqualTo(1f));
-            _binding.Apply(_tree.BeginUpdate().InsertRoot(3, "Three").Commit());
+            _binding.Apply(_tree.BeginUpdate().Insert(3, "Three").Commit());
             Tick();
             Assert.That(_adapter.Views[3], Is.SameAs(original));
             Assert.That(original.GetComponent<CanvasGroup>().interactable, Is.False);
@@ -868,7 +907,7 @@ namespace TreeMotion.Tests
         public void WidthChangeDuringInsert_SnapsWidthWithoutExtendingCompletion()
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));
-            var completion = _binding.ApplyAsync(_tree.BeginUpdate().InsertRoot(2, "Two").Commit());
+            var completion = _binding.ApplyAsync(_tree.BeginUpdate().Insert(2, "Two").Commit());
             Tick(.1f);
             var progress = _adapter.Views[2].GetComponent<TestTreeMotionItemView>().Presentation.Progress;
             _scrollRect.viewport.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 400);

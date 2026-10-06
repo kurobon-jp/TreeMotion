@@ -17,8 +17,8 @@ namespace TreeMotion.Tests
             switch (scenario)
             {
                 case "repeatedChanges":
-                    update.Update(3, "First").Update(3, "Second").Expanded(3, false)
-                        .MoveToRoot(3).Swap(1, 3).Move(3, 1).Expanded(1, false);
+                    update.Update(3, "First").Update(3, "Second").Expand(3, false)
+                        .MoveToRoot(3).Swap(1, 3).Move(3, 1).Expand(1, false);
                     break;
                 case "removeAndReinsert":
                     update.Remove(3).Insert(1, 3, "Replacement")
@@ -85,11 +85,11 @@ namespace TreeMotion.Tests
                 new TreeNodeRecord<int, string>(1, "Group"),
                 new TreeNodeRecord<int, string>(2, "Child", parentId: 1)
             });
-            var update = tree.BeginUpdate().Update(1, "Changed").Expanded(1, false)
-                .InsertRoot(3, "New root");
+            var update = tree.BeginUpdate().Update(1, "Changed").Expand(1, false)
+                .Insert(3, "New root");
             switch (failure)
             {
-                case "duplicate": update.InsertRoot(2, "Duplicate"); break;
+                case "duplicate": update.Insert(2, "Duplicate"); break;
                 case "ancestorSwap": update.Swap(1, 2); break;
                 case "descendantMove": update.Move(1, 2); break;
                 case "missingParent": update.Move(2, 99); break;
@@ -110,7 +110,7 @@ namespace TreeMotion.Tests
             var update = tree.BeginUpdate().Update(1, "Changed").Insert(9, 2, "Child");
             Assert.Throws<KeyNotFoundException>(() => update.Commit());
             Assert.That(tree.GetItem(1), Is.EqualTo("Original"));
-            tree.BeginUpdate().InsertRoot(9, "Parent").Commit();
+            tree.BeginUpdate().Insert(9, "Parent").Commit();
             update.Commit();
             Assert.That(tree.GetItem(1), Is.EqualTo("Changed"));
             Assert.That(tree.GetChildId(9, 0), Is.EqualTo(2));
@@ -149,7 +149,7 @@ namespace TreeMotion.Tests
         {
             var tree = new TreeStore<int, string>();
             tree.LoadSnapshot(new[] { new TreeNodeRecord<int, string>(1, "Snapshot") });
-            tree.BeginUpdate().InsertRoot(2, "Inserted").Insert(2, 3, "Child").Commit();
+            tree.BeginUpdate().Insert(2, "Inserted").Insert(2, 3, "Child").Commit();
             Assert.That(tree.IsExpanded(1), Is.True);
             Assert.That(tree.IsExpanded(2), Is.True);
             Assert.That(tree.IsExpanded(3), Is.True);
@@ -344,7 +344,7 @@ namespace TreeMotion.Tests
             var tree = new TreeStore<int, string>();
 
             tree.BeginUpdate()
-                .InsertRoot(1, "A", isExpanded: true)
+                .Insert(1, "A", isExpanded: true)
                 .Insert(1, 2, "A-1")
                 .Insert(1, 3, "B", isExpanded: true)
                 .Insert(3, 4, "B-1")
@@ -358,7 +358,7 @@ namespace TreeMotion.Tests
         {
             var tree = CreateNestedTree();
 
-            var collapse = tree.BeginUpdate().Expanded(1, false).Commit();
+            var collapse = tree.BeginUpdate().Expand(1, false).Commit();
 
             AssertVisible(tree, (1, 0));
             Assert.That(collapse.Count, Is.EqualTo(1));
@@ -366,7 +366,7 @@ namespace TreeMotion.Tests
             Assert.That(collapse[0].FromIndex, Is.EqualTo(1));
             Assert.That(collapse[0].Count, Is.EqualTo(3));
 
-            var expand = tree.BeginUpdate().Expanded(1, true).Commit();
+            var expand = tree.BeginUpdate().Expand(1, true).Commit();
 
             AssertVisible(tree, (1, 0), (2, 1), (3, 1), (4, 2));
             Assert.That(expand[0].Kind, Is.EqualTo(TreeChangeKind.Expand));
@@ -379,8 +379,8 @@ namespace TreeMotion.Tests
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate()
-                .InsertRoot(1, "A", isExpanded: true)
-                .InsertRoot(5, "C", isExpanded: true)
+                .Insert(1, "A", isExpanded: true)
+                .Insert(5, "C", isExpanded: true)
                 .Insert(1, 2, "B", isExpanded: true)
                 .Insert(2, 3, "leaf")
                 .Commit();
@@ -400,8 +400,8 @@ namespace TreeMotion.Tests
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate()
-                .InsertRoot(1, "A", isExpanded: true)
-                .InsertRoot(4, "B", isExpanded: false)
+                .Insert(1, "A", isExpanded: true)
+                .Insert(4, "B", isExpanded: false)
                 .Insert(1, 2, "group", isExpanded: true)
                 .Insert(2, 3, "leaf")
                 .Commit();
@@ -431,10 +431,10 @@ namespace TreeMotion.Tests
         public void DuplicateIds_AreRejected()
         {
             var tree = new TreeStore<int, string>();
-            tree.BeginUpdate().InsertRoot(1, "first").Commit();
+            tree.BeginUpdate().Insert(1, "first").Commit();
 
             Assert.Throws<ArgumentException>(() =>
-                tree.BeginUpdate().InsertRoot(1, "duplicate").Commit());
+                tree.BeginUpdate().Insert(1, "duplicate").Commit());
         }
 
         [Test]
@@ -443,9 +443,9 @@ namespace TreeMotion.Tests
             var tree = new TreeStore<int, int>();
 
             var changes = tree.BeginUpdate()
-                .InsertRoot(1, 1)
-                .InsertRoot(2, 2)
-                .InsertRoot(3, 3)
+                .Insert(1, 1)
+                .Insert(2, 2)
+                .Insert(3, 3)
                 .Commit();
 
             Assert.That(changes.Count, Is.EqualTo(1));
@@ -458,12 +458,12 @@ namespace TreeMotion.Tests
         public void AdjacentChildInserts_UpdateTheParentOnce()
         {
             var tree = new TreeStore<int, int>();
-            tree.BeginUpdate().InsertRoot(1, 1, isExpanded: true).Commit();
+            tree.BeginUpdate().Insert(1, 1, isExpanded: true).Commit();
 
             var changes = tree.BeginUpdate()
-                .Insert(1, 2, 2)
-                .Insert(1, 3, 3)
-                .Insert(1, 4, 4)
+                .Insert(parentId: 1, id: 2, item: 2)
+                .Insert(parentId: 1, id: 3, item: 3)
+                .Insert(parentId: 1, id: 4, item: 4)
                 .Commit();
 
             Assert.That(tree.VisibleCount, Is.EqualTo(4));
@@ -481,7 +481,7 @@ namespace TreeMotion.Tests
         public void Update_PreservesIdentityAndReportsUpdate()
         {
             var tree = new TreeStore<int, string>();
-            tree.BeginUpdate().InsertRoot(1, "before").Commit();
+            tree.BeginUpdate().Insert(1, "before").Commit();
 
             var changes = tree.BeginUpdate().Update(1, "after").Commit();
 
@@ -496,7 +496,7 @@ namespace TreeMotion.Tests
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate()
-                .InsertRoot(1, "root", isExpanded: true)
+                .Insert(1, "root", isExpanded: true)
                 .Insert(1, 2, "first", isExpanded: true)
                 .Insert(2, 3, "child")
                 .Insert(1, 4, "second")
@@ -522,10 +522,10 @@ namespace TreeMotion.Tests
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate()
-                .InsertRoot(1, "first root", isExpanded: true)
+                .Insert(1, "first root", isExpanded: true)
                 .Insert(1, 2, "first child", isExpanded: true)
                 .Insert(2, 3, "grandchild")
-                .InsertRoot(4, "second root", isExpanded: true)
+                .Insert(4, "second root", isExpanded: true)
                 .Insert(4, 5, "second child")
                 .Commit();
 
@@ -545,7 +545,7 @@ namespace TreeMotion.Tests
         public void Swap_RejectsTheSameIdentity()
         {
             var tree = new TreeStore<int, string>();
-            tree.BeginUpdate().InsertRoot(1, "one").InsertRoot(2, "two").Commit();
+            tree.BeginUpdate().Insert(1, "one").Insert(2, "two").Commit();
 
             Assert.Throws<ArgumentException>(() =>
                 tree.BeginUpdate().Swap(1, 1).Commit());
@@ -578,9 +578,9 @@ namespace TreeMotion.Tests
         {
             const int depth = 2000;
             var tree = new TreeStore<int, int>();
-            var update = tree.BeginUpdate().InsertRoot(0, 0, isExpanded: true);
+            var update = tree.BeginUpdate().Insert(0, 0, isExpanded: true);
             for (var i = 1; i < depth; i++)
-                update.Insert(i - 1, i, i, isExpanded: true);
+                update.Insert(parentId: i - 1, id: i, item: i, isExpanded: true);
 
             update.Commit();
 
@@ -592,7 +592,7 @@ namespace TreeMotion.Tests
         {
             var tree = new TreeStore<int, string>();
             tree.BeginUpdate()
-                .InsertRoot(1, "A", isExpanded: true)
+                .Insert(1, "A", isExpanded: true)
                 .Insert(1, 2, "A-1")
                 .Insert(1, 3, "B", isExpanded: true)
                 .Insert(3, 4, "B-1")

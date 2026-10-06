@@ -1,5 +1,5 @@
 {
-    "name": "Unity.TreeMotion.Samples",
+    "name": "TreeMotion.Samples",
     "rootNamespace": "TreeMotion",
     "references": [
         "TreeMotion"

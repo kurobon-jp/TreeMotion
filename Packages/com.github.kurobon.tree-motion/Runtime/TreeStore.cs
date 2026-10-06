@@ -184,6 +184,14 @@ namespace TreeMotion
         }
 
         public TItem GetItem(TId id) => GetNode(id).Item;
+        
+        public bool TryGetItem(TId id, out TItem item)
+        {
+            item = default;
+            if (!TryGetNode(id, out var node)) return false;
+            item = node.Item;
+            return true;
+        }
 
         public int GetChildCount(TId id) => GetNode(id).Children.Count;
 
@@ -205,7 +213,7 @@ namespace TreeMotion
         public int IndexOfVisible(TId id)
         {
             ValidateId(id, nameof(id));
-            return _visibleIndices.TryGetValue(id, out var index) ? index : -1;
+            return _visibleIndices.GetValueOrDefault(id, -1);
         }
 
         internal TreeChangeSet<TId> Apply(IReadOnlyList<TreeMutation<TId, TItem>> mutations)
@@ -318,8 +326,8 @@ namespace TreeMotion
                     case TreeMutationKind.Move:
                         Move(mutation, changes);
                         break;
-                    case TreeMutationKind.Expanded:
-                        Expanded(mutation.Id, mutation.IsExpanded, changes);
+                    case TreeMutationKind.Expand:
+                        Expand(mutation.Id, mutation.IsExpanded, changes);
                         break;
                     case TreeMutationKind.Update:
                         Update(mutation.Id, mutation.Item, changes);
@@ -532,7 +540,7 @@ namespace TreeMotion
                 RefreshVisibleRow(newParent, changes);
         }
 
-        private void Expanded(TId id, bool isExpanded, List<TreeChange<TId>> changes)
+        private void Expand(TId id, bool isExpanded, List<TreeChange<TId>> changes)
         {
             var node = GetNode(id);
             if (node.IsExpanded == isExpanded)
@@ -828,9 +836,14 @@ namespace TreeMotion
         private Node GetNode(TId id)
         {
             ValidateId(id, nameof(id));
-            if (_nodes.TryGetValue(id, out var node))
+            if (TryGetNode(id, out var node))
                 return node;
             throw new KeyNotFoundException($"No node exists for ID '{id}'.");
+        }
+
+        private bool TryGetNode(TId id, out Node node)
+        {
+            return _nodes.TryGetValue(id, out node);
         }
 
         private static int NormalizeInsertionIndex(int index, int count)

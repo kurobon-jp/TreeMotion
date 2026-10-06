@@ -7,6 +7,28 @@ namespace TreeMotion.Tests
     public sealed class TreeMotionAnimationTests
     {
         [Test]
+        public void ConsecutiveRemoves_PreserveExistingExitProgress()
+        {
+            var animation = new TreeMotionAnimation<int>();
+            animation.Snap(new[]
+            {
+                new TreeMotionLayout<int>(1, 0f, 20f),
+                new TreeMotionLayout<int>(2, 30f, 20f)
+            });
+            animation.Retarget(new[] { new TreeMotionLayout<int>(2, 0f, 20f) }, 1f);
+            animation.Advance(0.4f);
+
+            animation.Retarget(Array.Empty<TreeMotionLayout<int>>(), 1f);
+            Assert.That(Value(animation, 1).Progress, Is.EqualTo(0.4f).Within(0.0001f));
+            Assert.That(Value(animation, 2).Progress, Is.Zero);
+            animation.Advance(0.5f);
+            Assert.That(Value(animation, 1).Progress, Is.EqualTo(0.7f).Within(0.0001f));
+            Assert.That(Value(animation, 2).Progress, Is.EqualTo(0.5f).Within(0.0001f));
+            animation.Advance(0.5f);
+            Assert.That(animation.Count, Is.Zero);
+        }
+
+        [Test]
         public void PresentationProgress_IsLinearWhileGeometryUsesSmoothStep()
         {
             var animation = new TreeMotionAnimation<int>();
@@ -106,7 +128,7 @@ namespace TreeMotion.Tests
         public void SwapChange_MovesNodesFromTheirOwnPreviousPositions()
         {
             var tree = new TreeStore<int, string>();
-            tree.BeginUpdate().InsertRoot(1, "first").InsertRoot(2, "second").Commit();
+            tree.BeginUpdate().Insert(1, "first").Insert(2, "second").Commit();
             var animation = new TreeMotionAnimation<int>();
             var layout = new[]
             {

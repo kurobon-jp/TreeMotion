@@ -1,4 +1,4 @@
-namespace TreeMotion.Samples.ScrollView
+namespace TreeMotion.Samples
 {
     public enum SampleItemType
     {

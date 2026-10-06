@@ -9,7 +9,7 @@ A virtualized tree view for Unity uGUI, with animated changes to nested Groups a
 Insert, remove, move, swap, and expand nodes without replacing the entire tree.
 Unique IDs identify data, and views are reused per prefab.
 
-<img src="docs/images/tree-motion-demo.gif" alt="TreeMotion animation demo" height="512">
+<img src="docs/images/tree-motion-demo.gif" alt="TreeMotion animation demo" width="512">
 
 ## Features
 
@@ -143,12 +143,13 @@ binding.Apply(changes, duration: 0.4f);
 ```
 
 Other operations include `Remove(id)`, `Move(id, parentId, index)`, `MoveToRoot(id, index)`,
-`Swap(firstId, secondId)`, and `Expanded(id, expanded)`. Move/Swap carries a Group's subtree.
+`Swap(firstId, secondId)`, and `Expand(id, expanded)`. Move/Swap carries a Group's subtree.
 Swap preserves each node's ID, item, and expanded state; ancestor/descendant swaps are rejected.
 Move/Swap targets and their descendants render in front during the transition.
 
 Use LoadSnapshot for initial/full reloads, and BeginUpdate for subsequent changes. Call
-`binding.Reload()` after replacing a snapshot. `binding.Refresh(id)` rebinds presentation-only state,
+`binding.Reload()` after replacing a snapshot. Reload ends animation and immediately applies the latest state, retaining and rebinding visible views with the same ID and prefab. Views no longer needed return to the pool; new IDs and prefab changes receive a view.
+`binding.Refresh(id)` rebinds presentation-only state,
 such as selection; change the item through Update to update its size or content.
 
 ## Operations
@@ -162,14 +163,15 @@ and sibling orders for rollback; visible rows are rebuilt only when a batch fail
 
 | Operation | API | Behavior | Animation and notes |
 | --- | --- | --- | --- |
-| **Insert** | `Insert(parentId, id, item, index = -1, isExpanded = true)` <br/> `InsertRoot(id, item, index = -1, isExpanded = true)` | Adds a child or top-level node. IDs must be unique. Omitting index appends; `0` inserts at the beginning. A Group and its children can be inserted in one batch. | Visible nodes receive entering presentation; surrounding nodes and Group extents adjust. Children inserted into a collapsed Group stay hidden until it expands. |
+| **Insert** | `Insert(parentId, id, item, index = -1, isExpanded = true)` <br/> `Insert(id, item, index = -1, isExpanded = true)` | Adds a child or top-level node. IDs must be unique. Omitting index appends; `0` inserts at the beginning. A Group and its children can be inserted in one batch. | Visible nodes receive entering presentation; surrounding nodes and Group extents adjust. Children inserted into a collapsed Group stay hidden until it expands. |
 | **Remove** | `Remove(id)` | Deletes a node **and all its descendants** from TreeStore. | Visible views receive exiting presentation, then return to their pools. Surrounding nodes close the gap. During exit, the view can remain visible after its data has been removed. |
 | **Move** | `Move(id, parentId, index = -1)` / `MoveToRoot(id, index = -1)` | Changes parent/order while retaining ID, item, expanded state, and descendants. Index refers to the destination list after removing the node from its previous position. | Visible views interpolate to the destination, including horizontal geometry changes when depth changes. The target subtree renders in front. Moving into/out of a collapsed region hides/reveals nodes. Moving under one's own descendant is rejected. |
-| **Expanded** | `Expanded(id, isExpanded)` | `true` reveals children; `false` hides them **without deleting data**. Descendants retain their own expanded states. | Group extents and surrounding positions animate. Children entering/leaving the visible sequence receive Entering/Exiting presentation roles. |
+| **Expand** | `Expand(id, isExpanded)` | `true` reveals children; `false` hides them **without deleting data**. Descendants retain their own expanded states. | Group extents and surrounding positions animate. Children entering/leaving the visible sequence receive Entering/Exiting presentation roles. |
 | **Update** | `Update(id, item)` | Replaces the item while retaining ID, parent, children, and expanded state. The Adapter re-evaluates the prefab and leaf size, then binds the view again. | Size changes animate; content-only changes are reflected immediately. A prefab change replaces the view with one from the new prefab's pool: **appearance switches immediately**, without automatic entry/exit or crossfade. |
 | **Swap** | `Swap(firstId, secondId)` | Exchanges two nodes' positions, including across parents. Each carries its item, expanded state, and subtree. | Both target subtrees render in front while moving. Views retain their identity when their prefab is unchanged. Identical IDs and ancestor/descendant pairs are rejected. |
 
 Prefab definitions and pools are keyed by prefab reference. Updates that return the same prefab retain the view.
+When both IDs and items are `int`, use named arguments to distinguish child insertion (`Insert(parentId: 1, id: 2, item: 3)`) from root insertion with an index (`Insert(2, 3, index: 0)`).
 A node with children must resolve to a Group prefab.
 
 ## Await animation completion
@@ -206,7 +208,7 @@ public sealed class Scaling : MonoBehaviour, ITreeMotionPresentationHandler
         transform.localScale = Vector3.one;
     }
 
-    public void SetTreeMotionPresentation(in TreeMotionPresentation presentation)
+    public void ApplyPresentation(in TreeMotionPresentation presentation)
     {
         var scale = presentation.Cause switch
         {

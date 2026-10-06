@@ -1,9 +1,9 @@
 using System;
 
-namespace TreeMotion.Samples.ScrollView
+namespace TreeMotion.Samples
 {
     // The same IDs and final ordering are restored every cycle: no random or reload transitions.
-    internal static class ScrollViewShowcaseSequence
+    internal static class ShowcaseSequence
     {
         internal const int StepCount = 12;
         
@@ -28,8 +28,8 @@ namespace TreeMotion.Samples.ScrollView
             const int newCardOffset = 100;
             switch (step)
             {
-                case 0: update.Expanded(1, false); break;
-                case 1: update.Expanded(1, true); break;
+                case 0: update.Expand(1, false); break;
+                case 1: update.Expand(1, true); break;
                 case 2: update.Swap(5, 11); break;
                 case 3: update.Swap(5, 11); break;
                 case 4: update.Move(8, 1, 1); break;

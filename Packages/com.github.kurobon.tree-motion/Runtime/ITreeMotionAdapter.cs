@@ -8,12 +8,12 @@ namespace TreeMotion
         GameObject GetItemPrefab(TId id, TItem item);
         /// <summary>Size along the layout axis for a leaf node. Not called for Group prefabs.</summary>
         float GetItemSize(TId id, TItem item);
-        void Bind(GameObject view, TId id, TItem item, VisibleRow<TId> row);
+        void Bind(GameObject go, TId id, TItem item, VisibleRow<TId> row);
     }
 
     public interface ITreeMotionPresentationHandler
     {
         void ResetPresentation();
-        void SetTreeMotionPresentation(in TreeMotionPresentation presentation);
+        void ApplyPresentation(in TreeMotionPresentation presentation);
     }
 }

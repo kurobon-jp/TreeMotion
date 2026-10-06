@@ -12,7 +12,7 @@ namespace TreeMotion.Tests
             var tree = new TreeStore<int, int>();
             var update = tree.BeginUpdate();
             for (var i = 0; i < count; i++)
-                update.InsertRoot(i, i);
+                update.Insert(i, i);
 
             var stopwatch = Stopwatch.StartNew();
             var changes = update.Commit();
@@ -49,14 +49,14 @@ namespace TreeMotion.Tests
         {
             const int count = 10_000;
             var tree = new TreeStore<int, int>();
-            var setup = tree.BeginUpdate().InsertRoot(0, 0, isExpanded: true);
+            var setup = tree.BeginUpdate().Insert(0, 0, isExpanded: true);
             for (var i = 1; i <= count; i++)
-                setup.Insert(0, i, i);
+                setup.Insert(parentId: 0, id: i, item: i);
             setup.Commit();
 
             var stopwatch = Stopwatch.StartNew();
-            tree.BeginUpdate().Expanded(0, false).Commit();
-            tree.BeginUpdate().Expanded(0, true).Commit();
+            tree.BeginUpdate().Expand(0, false).Commit();
+            tree.BeginUpdate().Expand(0, true).Commit();
             stopwatch.Stop();
 
             TestContext.WriteLine($"Collapsed and expanded {count:N0} rows in " +
@@ -72,12 +72,12 @@ namespace TreeMotion.Tests
             var tree = new TreeStore<int, int>();
             var setup = tree.BeginUpdate();
             for (var i = 0; i < initialCount; i++)
-                setup.InsertRoot(i, i);
+                setup.Insert(i, i);
             setup.Commit();
 
             var update = tree.BeginUpdate();
             for (var i = 0; i < insertedCount; i++)
-                update.InsertRoot(initialCount + i, initialCount + i, initialCount / 2 + i);
+                update.Insert(initialCount + i, initialCount + i, index: initialCount / 2 + i);
 
             var stopwatch = Stopwatch.StartNew();
             update.Commit();

@@ -9,7 +9,7 @@ Unity uGUI向けの、階層構造の変更をアニメーションで表示す�
 ツリー全体を置き換えずに、Nodeの追加・削除・移動・Swap・開閉を行えます。
 ユニークなIDでデータを識別し、ViewはPrefab単位で再利用されます。
 
-<img src="docs/images/tree-motion-demo.gif" alt="TreeMotionのアニメーションデモ" height="512">
+<img src="docs/images/tree-motion-demo.gif" alt="TreeMotionのアニメーションデモ" width="512">
 
 ## 主な機能
 
@@ -143,12 +143,15 @@ binding.Apply(changes, duration: 0.4f);
 ```
 
 ほかにRemove(id)・Move(id, parentId, index)・MoveToRoot(id, index)・
-Swap(firstId, secondId)・Expanded(id, expanded)を使えます。
+Swap(firstId, secondId)・Expand(id, expanded)を使えます。
 GroupのMove／Swapは子孫ごと移動します。Swapでも各NodeのID・Item・開閉状態は維持されます。
 祖先と子孫のSwapは拒否します。演出中はMove／Swap対象とその子孫を前面に表示します。
 
 初期化や全置き換えにはLoadSnapshot、その後の変更にはBeginUpdateを使います。
 Snapshotを置き換えた後はbinding.Reload()を呼びます。
+`Reload()`はアニメーションを終了して最新状態を即時反映します。同じID・同じPrefabの表示中Viewを維持し、再Bindします。表示対象から外れたViewはプールへ返し、新しいIDやPrefab変更にはViewを割り当てます。
+
+IDとItemが両方`int`の場合は、子の追加を`Insert(parentId: 1, id: 2, item: 3)`、最上位への位置指定付き追加を`Insert(2, 3, index: 0)`のように名前付き引数で区別します。
 binding.Refresh(id)は選択状態などの表示だけを再Bindする用途です。
 Itemのサイズや内容を変更する場合はUpdateを使います。
 
@@ -162,10 +165,10 @@ Commitだけではデータの更新に留まり、接続先のUIは更新しま
 
 | 操作 | API | 動作 | アニメーション・注意点 |
 | --- | --- | --- | --- |
-| **Insert** | `Insert(parentId, id, item, index = -1, isExpanded = true)` <br/> `InsertRoot(id, item, index = -1, isExpanded = true)` | 子または最上位のNodeを追加します。IDは重複できません。index省略時は末尾、`0`は先頭です。同じバッチでGroupとその子を追加できます。 | 表示対象には登場演出が適用され、周囲のNodeとGroupのサイズが動いて領域を確保します。閉じたGroupへ追加した子は、Groupを開くまで表示されません。 |
+| **Insert** | `Insert(parentId, id, item, index = -1, isExpanded = true)` <br/> `Insert(id, item, index = -1, isExpanded = true)` | 子または最上位のNodeを追加します。IDは重複できません。index省略時は末尾、`0`は先頭です。同じバッチでGroupとその子を追加できます。 | 表示対象には登場演出が適用され、周囲のNodeとGroupのサイズが動いて領域を確保します。閉じたGroupへ追加した子は、Groupを開くまで表示されません。 |
 | **Remove** | `Remove(id)` | Nodeと**その子孫すべて**をTreeStoreから削除します。 | 表示中のViewは退出演出後にプールへ返り、周囲のNodeは空いた領域を詰めます。退出中はViewが残っていても、データは削除済みです。 |
 | **Move** | `Move(id, parentId, index = -1)` / `MoveToRoot(id, index = -1)` | ID・Item・開閉状態・子孫を維持して、親や並び順を変更します。indexは元の位置から対象を取り除いた後の移動先リストに対する位置です。 | 現在位置から移動先へ補間し、Depth変更による横位置・横幅の変化も含みます。対象と子孫を前面に表示します。閉じた領域への出入りでは非表示／登場に切り替わります。自分の子孫への移動は拒否します。 |
-| **Expanded** | `Expanded(id, isExpanded)` | `true`で子を表示し、`false`で閉じます。**データは削除せず**、子孫自身の開閉状態も維持します。 | Groupのサイズと周囲の配置がアニメーションします。表示対象に出入りする子にはEntering／Exitingの演出情報が渡されます。 |
+| **Expand** | `Expand(id, isExpanded)` | `true`で子を表示し、`false`で閉じます。**データは削除せず**、子孫自身の開閉状態も維持します。 | Groupのサイズと周囲の配置がアニメーションします。表示対象に出入りする子にはEntering／Exitingの演出情報が渡されます。 |
 | **Update** | `Update(id, item)` | ID・親・子・開閉状態を維持してItemを置き換えます。AdapterからPrefabと末端Itemのサイズを再取得し、表示を再Bindします。 | サイズが変わればアニメーションし、内容だけの変更は即座に反映します。Prefab変更時は新しいPrefabのViewへ交換します。**見た目は即座に切り替わり**、退出・登場やクロスフェードは自動では行いません。 |
 | **Swap** | `Swap(firstId, secondId)` | 異なる親の間も含めて、2つのNodeの位置を交換します。Item・開閉状態・子孫を伴って移動します。 | 演出中は双方の対象と子孫を前面に表示します。Prefabが変わらなければViewの同一性も維持します。同一ID同士、および祖先と子孫の組み合わせは拒否します。 |
 
@@ -206,7 +209,7 @@ public sealed class Scaling : MonoBehaviour, ITreeMotionPresentationHandler
         transform.localScale = Vector3.one;
     }
 
-    public void SetTreeMotionPresentation(in TreeMotionPresentation presentation)
+    public void ApplyPresentation(in TreeMotionPresentation presentation)
     {
         var scale = presentation.Cause switch
         {

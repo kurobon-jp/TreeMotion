@@ -1,6 +1,6 @@
 {
   "name": "com.github.kurobon.tree-motion",
-  "displayName": "Tree Motion",
+  "displayName": "TreeMotion",
   "version": "0.1.0",
   "unity": "2022.1",
   "description": "A virtualized, animated tree view for Unity uGUI.",
@@ -20,9 +20,8 @@
   },
   "samples": [
     {
-      "displayName": "ScrollView Tree Sample",
-      "description": "Repeatable TreeMotionScrollView showcase with nested Groups, expand/collapse, move, swap, insert, update, and remove animations.",
-      "path": "Samples~/ScrollView Tree Sample"
+      "displayName": "TreeMotion Samples",
+      "path": "Samples~"
     }
   ]
 }

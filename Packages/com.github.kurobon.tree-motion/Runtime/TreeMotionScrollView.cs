@@ -18,8 +18,10 @@ namespace TreeMotion
         public TreeMotionAnimationKind Kind { get; }
         public TreeMotionPresentationRole Role { get; }
         public TreeChangeKind? Cause { get; }
+
         /// <summary>Linear presentation progress without easing. Retargeting preserves the current value.</summary>
         public float Progress { get; }
+
         public bool IsAnimating { get; }
 
         public TreeMotionPresentation(TreeMotionAnimationKind kind, TreeMotionPresentationRole role, float progress,
@@ -52,14 +54,19 @@ namespace TreeMotion
         public void Reload() => _driver.Reload();
         public void Apply(TreeChangeSet<TId> changes) => _driver.Apply(changes, null);
         public void Apply(TreeChangeSet<TId> changes, float duration) => _driver.Apply(changes, duration);
+
         /// <summary>Waits for layout animation. A later Apply, Reload or disposal cancels the wait.
         /// Token cancellation cancels only the wait; an already started animation continues.
         /// Call on Unity's main thread. Independent presentation effects are not awaited.</summary>
         public Task ApplyAsync(TreeChangeSet<TId> changes, CancellationToken cancellationToken = default)
             => _driver.ApplyAsync(changes, null, cancellationToken);
-        public Task ApplyAsync(TreeChangeSet<TId> changes, float duration, CancellationToken cancellationToken = default)
+
+        public Task ApplyAsync(TreeChangeSet<TId> changes, float duration,
+            CancellationToken cancellationToken = default)
             => _driver.ApplyAsync(changes, duration, cancellationToken);
+
         public void Refresh(TId id) => _driver.Refresh(id);
+        public void Refresh(params TId[] ids) => _driver.Refresh(ids);
     }
 
     internal interface ITreeMotionDriver
@@ -75,6 +82,7 @@ namespace TreeMotion
         void Apply(TreeChangeSet<TId> changes, float? duration);
         Task ApplyAsync(TreeChangeSet<TId> changes, float? duration, CancellationToken cancellationToken);
         void Refresh(TId id);
+        void Refresh(params TId[] ids);
     }
 
     /// <summary>Stable-ID virtualization with per-prefab pools and whole Group prefabs.</summary>
@@ -203,7 +211,7 @@ namespace TreeMotion
 
                 internal void Present(in TreeMotionPresentation presentation)
                 {
-                    foreach (var handler in _handlers) handler.SetTreeMotionPresentation(presentation);
+                    foreach (var handler in _handlers) handler.ApplyPresentation(presentation);
                 }
             }
 
@@ -281,7 +289,8 @@ namespace TreeMotion
 
                     var children = _tree.GetChildCount(id);
                     if (children > 0 && definition.Group == null)
-                        throw new InvalidOperationException($"Node '{id}' has children but its prefab has no TreeMotionGroupView.");
+                        throw new InvalidOperationException(
+                            $"Node '{id}' has children but its prefab has no TreeMotionGroupView.");
                     _nodePrefabs.Add(id, prefab);
                     for (var i = 0; i < children; i++) _validation.Push(_tree.GetChildId(id, i));
                 }
@@ -292,8 +301,6 @@ namespace TreeMotion
                 ThrowIfDisposed();
                 ValidateData();
                 CancelCompletion();
-                foreach (var pair in _leased) Release(pair.Value);
-                _leased.Clear();
                 _byId.Clear();
                 _dirty.Clear();
                 _foregroundRoots.Clear();
@@ -302,6 +309,11 @@ namespace TreeMotion
                 _horizontal.Snap(_horizontalTargets);
                 _heightFrom = _heightTo;
                 SetHeight(_heightTo);
+                foreach (var pair in _leased)
+                {
+                    pair.Value.Reset();
+                    _dirty.Add(pair.Key);
+                }
                 RefreshVisibleViews();
             }
 
@@ -331,6 +343,7 @@ namespace TreeMotion
                     if (changes[i].Kind != TreeChangeKind.Remove && changes[i].Kind != TreeChangeKind.Swap)
                         _dirty.Add(changes[i].FirstId);
                 }
+
                 BuildLayout();
                 _heightFrom = _host._content.rect.height;
                 if (seconds == 0f)
@@ -344,6 +357,7 @@ namespace TreeMotion
                     CompleteTransition();
                     return;
                 }
+
                 _vertical.Retarget(_verticalTargets, seconds, changes);
                 _horizontal.Retarget(_horizontalTargets, seconds, changes);
                 AssignPresentationCauses();
@@ -361,6 +375,7 @@ namespace TreeMotion
                         layout.Cause = null;
                         continue;
                     }
+
                     var found = false;
                     for (var ancestor = layout; ancestor != null; ancestor = ancestor.Parent)
                     {
@@ -371,6 +386,7 @@ namespace TreeMotion
                         found = true;
                         break;
                     }
+
                     if (!found && value.Kind != TreeMotionAnimationKind.Insert &&
                         value.Kind != TreeMotionAnimationKind.Remove)
                         layout.Cause = null;
@@ -387,7 +403,8 @@ namespace TreeMotion
                 if (changes.Count == 0 || !IsAnimating) return Task.CompletedTask;
                 _completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 return cancellationToken.CanBeCanceled
-                    ? WaitForCompletion(_completion, cancellationToken) : _completion.Task;
+                    ? WaitForCompletion(_completion, cancellationToken)
+                    : _completion.Task;
             }
 
             private static async Task WaitForCompletion(TaskCompletionSource<bool> completion, CancellationToken token)
@@ -407,6 +424,17 @@ namespace TreeMotion
             {
                 ThrowIfDisposed();
                 _dirty.Add(id);
+                RefreshVisibleViews();
+            }
+
+            public void Refresh(params TId[] ids)
+            {
+                ThrowIfDisposed();
+                foreach (var id in ids)
+                {
+                    _dirty.Add(id);
+                }
+
                 RefreshVisibleViews();
             }
 
@@ -438,7 +466,8 @@ namespace TreeMotion
                     var layout = new Layout
                     {
                         Row = row, Item = _tree.GetItem(row.Id), Prefab = prefab, Definition = definition, Order = i,
-                        Top = y, Left = _host._rootGroup.ChildrenPadding.left, Right = _host._rootGroup.ChildrenPadding.right
+                        Top = y, Left = _host._rootGroup.ChildrenPadding.left,
+                        Right = _host._rootGroup.ChildrenPadding.right
                     };
                     if (_open.Count > 0)
                     {
@@ -452,7 +481,9 @@ namespace TreeMotion
                     var regionWidth = Mathf.Max(0f, _layoutWidth - layout.Left - layout.Right);
                     var rect = definition.Rect;
                     var width = Mathf.Max(0f, regionWidth * (rect.anchorMax.x - rect.anchorMin.x) + rect.sizeDelta.x);
-                    var pivotX = layout.Left + regionWidth * Mathf.LerpUnclamped(rect.anchorMin.x, rect.anchorMax.x, rect.pivot.x) + rect.anchoredPosition.x;
+                    var pivotX = layout.Left +
+                                 regionWidth * Mathf.LerpUnclamped(rect.anchorMin.x, rect.anchorMax.x, rect.pivot.x) +
+                                 rect.anchoredPosition.x;
                     layout.Left = pivotX - width * rect.pivot.x;
                     layout.Right = _layoutWidth - layout.Left - width;
 
@@ -461,6 +492,7 @@ namespace TreeMotion
                         layout.Cause = old.Cause;
                         if (old.Prefab != prefab || !SameRow(old.Row, row)) _dirty.Add(row.Id);
                     }
+
                     _byId[row.Id] = layout;
                     _layouts.Add(layout);
                     _targets.Add(row.Id);
@@ -530,6 +562,7 @@ namespace TreeMotion
                     _byId.Remove(id);
                     _dirty.Remove(id);
                 }
+
                 var completion = _completion;
                 _completion = null;
                 completion?.TrySetResult(true);
@@ -654,7 +687,8 @@ namespace TreeMotion
                         _adapter.Bind(lease.GameObject, id, layout.Item, layout.Row);
                     _vertical.TryGetValue(id, out var vertical);
                     _horizontal.TryGetValue(id, out var horizontal);
-                    Position(lease.RectTransform, bounds, horizontal.Offset, horizontal.Size, vertical.Offset, vertical.Size);
+                    Position(lease.RectTransform, bounds, horizontal.Offset, horizontal.Size, vertical.Offset,
+                        vertical.Size);
                     if (lease.GroupView != null)
                         lease.GroupView.SetGeometry(vertical.Size);
                     var role = vertical.Kind == TreeMotionAnimationKind.Remove ? TreeMotionPresentationRole.Exiting :
@@ -665,6 +699,7 @@ namespace TreeMotion
                     _orderedViews.Add(lease);
                     if (!lease.GameObject.activeSelf) lease.GameObject.SetActive(true);
                 }
+
                 // All leases exist now; inactive pooled views stay before the visible draw order.
                 var firstSibling = _host._content.childCount - _orderedViews.Count;
                 for (var i = _orderedViews.Count - 1; i >= 0; i--)
@@ -690,10 +725,13 @@ namespace TreeMotion
                             _render[j + 1] = _render[j];
                             j--;
                         }
+
                         _render[j + 1] = value;
                     }
+
                     return;
                 }
+
                 for (var i = _render.Count / 2 - 1; i >= 0; i--)
                     SiftRenderDown(i, _render.Count);
                 for (var end = _render.Count - 1; end > 0; end--)
@@ -714,6 +752,7 @@ namespace TreeMotion
                     _render[root] = _render[child];
                     root = child;
                 }
+
                 _render[root] = value;
             }
 

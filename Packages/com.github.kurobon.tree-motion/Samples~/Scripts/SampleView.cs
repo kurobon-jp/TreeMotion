@@ -2,9 +2,9 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace TreeMotion.Samples.ScrollView
+namespace TreeMotion.Samples
 {
-    public sealed class ScrollViewTreeSampleRow : MonoBehaviour
+    public sealed class SampleView : MonoBehaviour
     {
         [SerializeField] private Button _button;
         [SerializeField] private Text _label;
@@ -18,14 +18,14 @@ namespace TreeMotion.Samples.ScrollView
             _button.onClick.AddListener(() => _clicked?.Invoke(_id));
         }
 
-        public void Bind(int id, string item, VisibleRow<int> row, Action<int> clicked, bool isGroup = false)
+        public void Bind(int id, SampleItem item, Action<int> clicked, bool isExpanded)
         {
             _id = id;
+            _label.text = item.Label;
+            _toggleLabel.gameObject.SetActive(false);
             _clicked = clicked;
-            _button.interactable = isGroup;
-            _label.text = item;
-            _toggleLabel.transform.parent.gameObject.SetActive(isGroup);
-            _toggleLabel.text = row.IsExpanded ? "v" : ">";
+            _toggleLabel.gameObject.SetActive(item.Type == SampleItemType.Group);
+            _toggleLabel.text = isExpanded ? "v" : ">";
         }
     }
 }

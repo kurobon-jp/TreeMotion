@@ -3,10 +3,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-namespace TreeMotion.Samples.ScrollView
+namespace TreeMotion.Samples
 {
     // TreeMotionScrollView owns all layout, pooling, culling and animation.
-    public sealed class ScrollViewTreeSampleController : MonoBehaviour, ITreeMotionAdapter<int, SampleItem>
+    public sealed class Showcase : MonoBehaviour, ITreeMotionAdapter<int, SampleItem>
     {
         [SerializeField] private TreeMotionScrollView _scrollView;
         [SerializeField] private GameObject _itemPrefab;
@@ -23,7 +23,7 @@ namespace TreeMotion.Samples.ScrollView
 
         private void Start()
         {
-            _tree.LoadSnapshot(ScrollViewShowcaseSequence.InitialSnapshot());
+            _tree.LoadSnapshot(ShowcaseSequence.InitialSnapshot());
             _binding = _scrollView.Bind(_tree, this);
             StartShowcase();
         }
@@ -49,12 +49,11 @@ namespace TreeMotion.Samples.ScrollView
             return item.Size;
         }
 
-        public void Bind(GameObject go, int id, SampleItem item, VisibleRow<int> visible)
+        public void Bind(GameObject go, int id, SampleItem item, VisibleRow<int> row)
         {
-            var isGroup = item.Type == SampleItemType.Group;
-            if (go.TryGetComponent(out ScrollViewTreeSampleRow row))
+            if (go.TryGetComponent(out SampleView view))
             {
-                row.Bind(id, item.Label, visible, Toggle, isGroup);
+                view.Bind(id, item, Toggle, row.IsExpanded);
             }
         }
 
@@ -64,7 +63,7 @@ namespace TreeMotion.Samples.ScrollView
             if (_tree.GetChildCount(id) > 0)
                 _binding.Apply(_tree
                     .BeginUpdate()
-                    .Expanded(id, !_tree.IsExpanded(id))
+                    .Expand(id, !_tree.IsExpanded(id))
                     .Commit()
                 );
         }
@@ -92,9 +91,9 @@ namespace TreeMotion.Samples.ScrollView
             await Task.Delay(TimeSpan.FromSeconds(_openingHold), cancellationToken);
             while (true)
             {
-                for (var i = 0; i < ScrollViewShowcaseSequence.StepCount; i++)
+                for (var i = 0; i < ShowcaseSequence.StepCount; i++)
                 {
-                    var changes = ScrollViewShowcaseSequence.ApplyStep(_tree, i);
+                    var changes = ShowcaseSequence.ApplyStep(_tree, i);
                     await _binding.ApplyAsync(changes, cancellationToken);
                     // Finish the transition before holding a readable, settled frame.
                     await Task.Delay(TimeSpan.FromSeconds(_beatDuration), cancellationToken);
