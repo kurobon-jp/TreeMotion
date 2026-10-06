@@ -204,12 +204,12 @@ using UnityEngine;
 
 public sealed class Scaling : MonoBehaviour, ITreeMotionPresentationHandler
 {
-    public void ResetPresentation()
+    public void Clear()
     {
         transform.localScale = Vector3.one;
     }
 
-    public void ApplyPresentation(in TreeMotionPresentation presentation)
+    public void Apply(in TreeMotionPresentation presentation)
     {
         var scale = presentation.Cause switch
         {
@@ -229,7 +229,7 @@ PrefabのルートGameObjectにScalingを追加します。
 変更の種類・Entering／Visible／Exiting・線形の進行度が渡されます。
 `presentation.Cause`は`TreeChangeKind`で演出（Insert・Remove・Expand・Collapse・Move・Swap・Update）を返します。
 たとえば、追加は`Role = Entering, Cause = Insert`、Groupを開いた際の子の登場は`Role = Entering, Cause = Expand`です。
-ResetPresentationはプール返却／再利用時に状態を戻します。
+Clearはプール返却／再利用時に状態を戻します。
 異なるプロパティを操作するハンドラーは併用できます。
 
 ## 現在の対応範囲

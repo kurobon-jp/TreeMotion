@@ -203,12 +203,12 @@ using UnityEngine;
 
 public sealed class Scaling : MonoBehaviour, ITreeMotionPresentationHandler
 {
-    public void ResetPresentation()
+    public void Clear()
     {
         transform.localScale = Vector3.one;
     }
 
-    public void ApplyPresentation(in TreeMotionPresentation presentation)
+    public void Apply(in TreeMotionPresentation presentation)
     {
         var scale = presentation.Cause switch
         {
@@ -230,7 +230,7 @@ Handlers receive kind, Entering/Visible/Exiting role, and linear progress.
 Move, Swap, and Update. It is null when there is no cause.
 For example, insertion uses `Role = Entering, Cause = Insert`, while children revealed by
 expanding a Group use `Role = Entering, Cause = Expand`.
-ResetPresentation restores
+Clear restores
 state when views are pooled. Multiple handlers can combine effects if they write different
 properties.
 

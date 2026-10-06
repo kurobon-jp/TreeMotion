@@ -12,12 +12,12 @@ namespace TreeMotion.Tests
         public int BoundId { get; set; }
         public TreeMotionPresentation Presentation { get; private set; }
         public int Resets { get; private set; }
-        public void ResetPresentation()
+        public void Clear()
         {
             Resets++;
             transform.localScale = Vector3.one;
         }
-        public void ApplyPresentation(in TreeMotionPresentation presentation)
+        public void Apply(in TreeMotionPresentation presentation)
         {
             Presentation = presentation;
             transform.localScale = presentation.Role == TreeMotionPresentationRole.Exiting ? Vector3.one * 0.9f : Vector3.one;
