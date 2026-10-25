@@ -116,6 +116,68 @@ namespace TreeMotion.Tests
         private void Viewport(float height) => _scrollRect.viewport.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
 
         [Test]
+        public void ScrollTo_JumpsAndMaterializesOffscreenRow()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            _scrollRect.velocity = new Vector2(0f, 100f);
+            Assert.That(_binding.ScrollTo(3), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(78f).Within(.01f));
+            Assert.That(_adapter.Views[3].activeSelf, Is.True);
+            Assert.That(_scrollRect.velocity, Is.EqualTo(Vector2.zero));
+            Assert.That(_binding.ScrollTo(1), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(12f).Within(.01f));
+        }
+
+        [Test]
+        public void ScrollTo_SmoothInterpolatesAndCanBeRetargetedOrReplacedByJump()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            Assert.That(_binding.ScrollTo(3, duration: 1f), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.Zero);
+            Tick(.5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(39f).Within(.01f));
+            _binding.ScrollTo(1, duration: 1f);
+            Tick(.5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(25.5f).Within(.01f));
+            _binding.ScrollTo(3);
+            Tick(1f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(78f).Within(.01f));
+        }
+
+        [Test]
+        public void ScrollTo_AlignsRowAndAppliesOffset()
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            _binding.ScrollTo(5, alignment: 0f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(244f).Within(.01f));
+            _binding.ScrollTo(5, alignment: .5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(219f).Within(.01f));
+            _binding.ScrollTo(5, alignment: 1f, offset: 10f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(184f).Within(.01f));
+            _binding.ScrollTo(5, alignment: 0f, duration: 1f);
+            Tick(1f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(244f).Within(.01f));
+            _binding.ScrollTo(10, alignment: 0f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(496f).Within(.01f));
+            Assert.Throws<ArgumentOutOfRangeException>(() => _binding.ScrollTo(5, alignment: 2f));
+        }
+
+        [Test]
+        public void ScrollTo_RejectsMissingAndCollapsedRows()
+        {
+            _adapter.Groups.Add(1);
+            Load(new TreeNodeRecord<int, string>(1, "Group"), new TreeNodeRecord<int, string>(2, "Child", parentId: 1));
+            Assert.That(_binding.ScrollTo(2), Is.False);
+            Assert.That(_binding.ScrollTo(999, duration: 0.25f), Is.False);
+            Assert.That(_content.anchoredPosition.y, Is.Zero);
+            Assert.Throws<InvalidOperationException>(() => _binding.ScrollTo(1, duration: float.NaN));
+        }
+
+        [Test]
         public void Reload_PreservesViewsByIdAndRebindsAfterSnapshotReorder()
         {
             Viewport(500f);

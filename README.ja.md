@@ -31,6 +31,23 @@ https://github.com/kurobon-jp/TreeMotion.git?path=Packages/com.github.kurobon.tr
 
 ## ScrollViewの構成
 
+Key（ID）を指定して表示範囲へスクロールできます。
+
+```csharp
+binding.ScrollTo(key); // 即ジャンプ
+binding.ScrollTo(key, duration: 0.4f); // スムース移動（秒）
+binding.ScrollTo(key, alignment: 0f); // 上端
+binding.ScrollTo(key, alignment: 0.5f, duration: 0.25f); // 中央へスムース移動
+binding.ScrollTo(key, alignment: 1f, offset: -16f); // 下端から16だけ内側
+```
+
+`alignment` 省略時は、すでに表示範囲内なら移動しません。指定時は行の位置を揃えます。
+`alignment` は0〜1、`offset` は正で画面下方向です。スクロール範囲の端では位置を制限します。
+存在しないIDや折りたたまれた配下は `false` を返します。
+再指定すると現在位置から移動し、`duration: 0f` は即ジャンプになります。
+表示範囲より大きい行は上端へ揃えます。レイアウトアニメーション中は現在の行位置を使います。
+`Reload` はスムース移動を中止します。`IsAnimating` と `ApplyAsync` はレイアウトアニメーションのみを対象とします。
+
 Hierarchyの **UI (Canvas) → Tree Motion → Scroll View** から、参照設定済みのテンプレートを作成できます。
 Item／GroupのPrefabとAdapterは別途用意します。
 

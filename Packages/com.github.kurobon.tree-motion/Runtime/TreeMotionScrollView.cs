@@ -67,6 +67,15 @@ namespace TreeMotion
 
         public void Refresh(TId id) => _driver.Refresh(id);
         public void Refresh(params TId[] ids) => _driver.Refresh(ids);
+
+        /// <summary>Scrolls a visible row into the viewport. Zero duration jumps immediately;
+        /// positive duration scrolls smoothly in seconds. Without alignment, uses minimal movement.
+        /// Returns false for missing or collapsed rows. Oversized rows align to the top.
+        /// Optional alignment: 0 = top, 0.5 = center, 1 = bottom, including oversized rows.
+        /// Positive offset places the aligned row further down the viewport. Clamps to content bounds.
+        /// During layout animation, uses the row's current geometry. Call on Unity's main thread.</summary>
+        public bool ScrollTo(TId id, float duration = 0f, float alignment = 0.5f, float offset = 0f)
+            => _driver.ScrollTo(id, duration, alignment, offset);
     }
 
     internal interface ITreeMotionDriver
@@ -83,6 +92,7 @@ namespace TreeMotion
         Task ApplyAsync(TreeChangeSet<TId> changes, float? duration, CancellationToken cancellationToken);
         void Refresh(TId id);
         void Refresh(params TId[] ids);
+        bool ScrollTo(TId id, float duration, float alignment, float offset);
     }
 
     /// <summary>Stable-ID virtualization with per-prefab pools and whole Group prefabs.</summary>
@@ -239,6 +249,11 @@ namespace TreeMotion
             private float _heightFrom, _heightTo;
             private float _layoutWidth;
             private bool _disposed;
+            private bool _scrolling;
+            private TId _scrollTarget;
+            private float _scrollFrom, _scrollElapsed, _scrollDuration;
+            private float? _scrollAlignment;
+            private float _scrollOffset;
             private TaskCompletionSource<bool> _completion;
 
             internal Driver(TreeMotionScrollView host, TreeStore<TId, TItem> tree,
@@ -301,6 +316,7 @@ namespace TreeMotion
                 ThrowIfDisposed();
                 ValidateData();
                 CancelCompletion();
+                _scrolling = false;
                 _byId.Clear();
                 _dirty.Clear();
                 _foregroundRoots.Clear();
@@ -438,6 +454,66 @@ namespace TreeMotion
                 RefreshVisibleViews();
             }
 
+            public bool ScrollTo(TId id, float duration, float alignment, float offset)
+            {
+                ThrowIfDisposed();
+                ValidateNumber(duration, "ScrollDuration");
+                if (float.IsNaN(alignment) || alignment < 0f || alignment > 1f)
+                    throw new ArgumentOutOfRangeException(nameof(alignment), "Alignment must be between 0 and 1.");
+                if (float.IsNaN(offset) || float.IsInfinity(offset))
+                    throw new ArgumentOutOfRangeException(nameof(offset));
+                RefreshWidth();
+                if (!_targets.Contains(id) || !_vertical.TryGetValue(id, out _)) return false;
+
+                _scrolling = duration > 0f;
+                _scrollTarget = id;
+                _scrollFrom = _host._content.anchoredPosition.y;
+                _scrollElapsed = 0f;
+                _scrollDuration = duration;
+                _scrollAlignment = alignment;
+                _scrollOffset = offset;
+                _host._scrollRect.StopMovement();
+                if (!_scrolling) SetScrollPosition(GetScrollDestination(id));
+                return true;
+            }
+
+            private float GetScrollDestination(TId id)
+            {
+                _vertical.TryGetValue(id, out var row);
+                var viewportHeight = Mathf.Max(0f, _host._viewport.rect.height);
+                var top = _scrollFrom;
+                if (_scrollAlignment.HasValue)
+                    top = row.Offset - (viewportHeight - row.Size) * _scrollAlignment.Value - _scrollOffset;
+                else if (row.Size > viewportHeight || row.Offset < top) top = row.Offset;
+                else if (row.Offset + row.Size > top + viewportHeight)
+                    top = row.Offset + row.Size - viewportHeight;
+                return Mathf.Clamp(top, 0f, Mathf.Max(0f, _host._content.rect.height - viewportHeight));
+            }
+
+            private void SetScrollPosition(float top)
+            {
+                var position = _host._content.anchoredPosition;
+                position.y = top;
+                _host._scrollRect.StopMovement();
+                _host._content.anchoredPosition = position;
+                RefreshVisibleViews();
+            }
+
+            private void TickScroll(float deltaTime)
+            {
+                if (!_scrolling) return;
+                if (!_targets.Contains(_scrollTarget))
+                {
+                    _scrolling = false;
+                    return;
+                }
+                _scrollElapsed += Mathf.Max(0f, deltaTime);
+                var progress = Mathf.Clamp01(_scrollElapsed / _scrollDuration);
+                var eased = progress * progress * (3f - 2f * progress);
+                SetScrollPosition(Mathf.LerpUnclamped(_scrollFrom, GetScrollDestination(_scrollTarget), eased));
+                if (progress >= 1f) _scrolling = false;
+            }
+
             private void BuildLayout()
             {
                 _layoutWidth = _host._content.rect.width;
@@ -539,7 +615,11 @@ namespace TreeMotion
             {
                 if (_disposed) return;
                 RefreshWidth();
-                if (!IsAnimating) return;
+                if (!IsAnimating)
+                {
+                    TickScroll(deltaTime);
+                    return;
+                }
                 _vertical.Advance(deltaTime);
                 _horizontal.Advance(deltaTime);
                 var p = _vertical.Progress;
@@ -548,6 +628,7 @@ namespace TreeMotion
                 RefreshVisibleViews();
                 if (!IsAnimating)
                     CompleteTransition();
+                TickScroll(deltaTime);
             }
 
             private void CompleteTransition()
