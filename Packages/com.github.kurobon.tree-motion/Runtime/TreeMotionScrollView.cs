@@ -74,7 +74,7 @@ namespace TreeMotion
         /// Optional alignment: 0 = top, 0.5 = center, 1 = bottom, including oversized rows.
         /// Positive offset places the aligned row further down the viewport. Clamps to content bounds.
         /// During layout animation, uses the row's current geometry. Call on Unity's main thread.</summary>
-        public bool ScrollTo(TId id, float duration = 0f, float alignment = 0.5f, float offset = 0f)
+        public bool ScrollTo(TId id, float duration = 0f, float? alignment = null, float offset = 0f)
             => _driver.ScrollTo(id, duration, alignment, offset);
     }
 
@@ -92,7 +92,7 @@ namespace TreeMotion
         Task ApplyAsync(TreeChangeSet<TId> changes, float? duration, CancellationToken cancellationToken);
         void Refresh(TId id);
         void Refresh(params TId[] ids);
-        bool ScrollTo(TId id, float duration, float alignment, float offset);
+        bool ScrollTo(TId id, float duration, float? alignment, float offset);
     }
 
     /// <summary>Stable-ID virtualization with per-prefab pools and whole Group prefabs.</summary>
@@ -454,11 +454,11 @@ namespace TreeMotion
                 RefreshVisibleViews();
             }
 
-            public bool ScrollTo(TId id, float duration, float alignment, float offset)
+            public bool ScrollTo(TId id, float duration, float? alignment, float offset)
             {
                 ThrowIfDisposed();
                 ValidateNumber(duration, "ScrollDuration");
-                if (float.IsNaN(alignment) || alignment < 0f || alignment > 1f)
+                if (alignment.HasValue && (float.IsNaN(alignment.Value) || alignment.Value < 0f || alignment.Value > 1f))
                     throw new ArgumentOutOfRangeException(nameof(alignment), "Alignment must be between 0 and 1.");
                 if (float.IsNaN(offset) || float.IsInfinity(offset))
                     throw new ArgumentOutOfRangeException(nameof(offset));
