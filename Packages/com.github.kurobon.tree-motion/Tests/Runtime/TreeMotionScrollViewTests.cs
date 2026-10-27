@@ -122,7 +122,7 @@ namespace TreeMotion.Tests
                 new TreeNodeRecord<int, string>(3, "Three"));
             _scrollRect.velocity = new Vector2(0f, 100f);
             Assert.That(_binding.ScrollTo(3), Is.True);
-            Assert.That(_content.anchoredPosition.y, Is.EqualTo(78f).Within(.01f));
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
             Assert.That(_adapter.Views[3].activeSelf, Is.True);
             Assert.That(_scrollRect.velocity, Is.EqualTo(Vector2.zero));
             Assert.That(_binding.ScrollTo(1), Is.True);
@@ -137,13 +137,23 @@ namespace TreeMotion.Tests
             Assert.That(_binding.ScrollTo(3, duration: 1f), Is.True);
             Assert.That(_content.anchoredPosition.y, Is.Zero);
             Tick(.5f);
-            Assert.That(_content.anchoredPosition.y, Is.EqualTo(39f).Within(.01f));
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(45f).Within(.01f));
             _binding.ScrollTo(1, duration: 1f);
             Tick(.5f);
-            Assert.That(_content.anchoredPosition.y, Is.EqualTo(25.5f).Within(.01f));
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(28.5f).Within(.01f));
             _binding.ScrollTo(3);
             Tick(1f);
-            Assert.That(_content.anchoredPosition.y, Is.EqualTo(78f).Within(.01f));
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+        }
+
+        [Test]
+        public void ScrollTo_DefaultAlignsAlreadyVisibleRowToTop()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            Assert.That(_adapter.Views[1].activeSelf, Is.True);
+            Assert.That(_binding.ScrollTo(1), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(12f).Within(.01f));
         }
 
         [Test]

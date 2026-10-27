@@ -41,7 +41,7 @@ binding.ScrollTo(key, alignment: 0.5f, duration: 0.25f); // Smoothly align to ce
 binding.ScrollTo(key, alignment: 1f, offset: -16f); // 16 units above the bottom
 ```
 
-Without alignment, rows already in view stay in place. Explicit alignment positions the row within the viewport
+Alignment defaults to `0f` (top), even for rows already in view. Alignment positions the row within the viewport
 (0 = top, 0.5 = center, 1 = bottom). Positive offset moves the row down. Content bounds limit scrolling.
 Missing IDs and rows beneath collapsed ancestors return `false`.
 Retargeting starts from the current position; zero duration jumps immediately.

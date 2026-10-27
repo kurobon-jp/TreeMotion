@@ -41,7 +41,7 @@ binding.ScrollTo(key, alignment: 0.5f, duration: 0.25f); // 中央へスムー�
 binding.ScrollTo(key, alignment: 1f, offset: -16f); // 下端から16だけ内側
 ```
 
-`alignment` 省略時は、すでに表示範囲内なら移動しません。指定時は行の位置を揃えます。
+`alignment` のデフォルトは `0f`（上端）です。すでに表示範囲内でも指定位置に揃えます。
 `alignment` は0〜1、`offset` は正で画面下方向です。スクロール範囲の端では位置を制限します。
 存在しないIDや折りたたまれた配下は `false` を返します。
 再指定すると現在位置から移動し、`duration: 0f` は即ジャンプになります。
