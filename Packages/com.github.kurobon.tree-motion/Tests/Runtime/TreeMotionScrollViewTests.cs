@@ -177,6 +177,38 @@ namespace TreeMotion.Tests
         }
 
         [Test]
+        [TestCase(200f, 0f)]
+        [TestCase(-200f, 0f)]
+        [TestCase(200f, 1f)]
+        [TestCase(-200f, 1f)]
+        [TestCase(100f, 0f)]
+        [TestCase(-50f, 0f)]
+        public void ScrollTo_RejectsOffsetLeavingTargetOutsideViewport(float offset, float duration)
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            Assert.That(_binding.ScrollTo(5, duration: duration, offset: offset), Is.False);
+            Tick(1f);
+            Assert.That(_content.anchoredPosition.y, Is.Zero);
+            Assert.That(_adapter.Views.ContainsKey(5), Is.False);
+        }
+
+        [Test]
+        public void ScrollTo_RejectedOffsetPreservesActiveScroll()
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            Assert.That(_binding.ScrollTo(5, duration: 1f), Is.True);
+            Tick(.5f);
+            Assert.That(_binding.ScrollTo(6, offset: 200f), Is.False);
+            Tick(.5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(244f).Within(.01f));
+            Assert.That(_adapter.Views[5].activeSelf, Is.True);
+        }
+
+        [Test]
         public void ScrollTo_RejectsMissingAndCollapsedRows()
         {
             _adapter.Groups.Add(1);

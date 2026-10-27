@@ -44,6 +44,7 @@ binding.ScrollTo(key, alignment: 1f, offset: -16f); // 16 units above the bottom
 Alignment defaults to `0f` (top), even for rows already in view. Alignment positions the row within the viewport
 (0 = top, 0.5 = center, 1 = bottom). Positive offset moves the row down. Content bounds limit scrolling.
 Missing IDs and rows beneath collapsed ancestors return `false`.
+Offsets that leave the target outside the viewport also return `false`, preserving any active scroll.
 Retargeting starts from the current position; zero duration jumps immediately.
 Oversized rows align to the top. During layout animation, scrolling uses current row geometry.
 `Reload` cancels smooth scrolling. `IsAnimating` and `ApplyAsync` cover only layout animation.

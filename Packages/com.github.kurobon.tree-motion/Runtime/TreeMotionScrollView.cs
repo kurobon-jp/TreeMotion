@@ -70,7 +70,7 @@ namespace TreeMotion
 
         /// <summary>Scrolls a visible row into the viewport. Zero duration jumps immediately;
         /// positive duration scrolls smoothly in seconds. Aligns to the top by default.
-        /// Returns false for missing or collapsed rows.
+        /// Returns false for missing or collapsed rows, or if the destination leaves the row outside the viewport.
         /// Alignment: 0 = top, 0.5 = center, 1 = bottom, including oversized rows.
         /// Positive offset places the aligned row further down the viewport. Clamps to content bounds.
         /// During layout animation, uses the row's current geometry. Call on Unity's main thread.</summary>
@@ -463,7 +463,11 @@ namespace TreeMotion
                 if (float.IsNaN(offset) || float.IsInfinity(offset))
                     throw new ArgumentOutOfRangeException(nameof(offset));
                 RefreshWidth();
-                if (!_targets.Contains(id) || !_vertical.TryGetValue(id, out _)) return false;
+                if (!_targets.Contains(id) || !_vertical.TryGetValue(id, out var row)) return false;
+                var destination = GetScrollDestination(id, alignment, offset);
+                var viewportHeight = Mathf.Max(0f, _host._viewport.rect.height);
+                if (viewportHeight <= 0f || row.Size <= 0f || row.Offset + row.Size <= destination ||
+                    row.Offset >= destination + viewportHeight) return false;
 
                 _scrolling = duration > 0f;
                 _scrollTarget = id;
@@ -473,15 +477,15 @@ namespace TreeMotion
                 _scrollAlignment = alignment;
                 _scrollOffset = offset;
                 _host._scrollRect.StopMovement();
-                if (!_scrolling) SetScrollPosition(GetScrollDestination(id));
+                if (!_scrolling) SetScrollPosition(destination);
                 return true;
             }
 
-            private float GetScrollDestination(TId id)
+            private float GetScrollDestination(TId id, float alignment, float offset)
             {
                 _vertical.TryGetValue(id, out var row);
                 var viewportHeight = Mathf.Max(0f, _host._viewport.rect.height);
-                var top = row.Offset - (viewportHeight - row.Size) * _scrollAlignment - _scrollOffset;
+                var top = row.Offset - (viewportHeight - row.Size) * alignment - offset;
                 return Mathf.Clamp(top, 0f, Mathf.Max(0f, _host._content.rect.height - viewportHeight));
             }
 
@@ -505,7 +509,8 @@ namespace TreeMotion
                 _scrollElapsed += Mathf.Max(0f, deltaTime);
                 var progress = Mathf.Clamp01(_scrollElapsed / _scrollDuration);
                 var eased = progress * progress * (3f - 2f * progress);
-                SetScrollPosition(Mathf.LerpUnclamped(_scrollFrom, GetScrollDestination(_scrollTarget), eased));
+                SetScrollPosition(Mathf.LerpUnclamped(_scrollFrom,
+                    GetScrollDestination(_scrollTarget, _scrollAlignment, _scrollOffset), eased));
                 if (progress >= 1f) _scrolling = false;
             }
 
