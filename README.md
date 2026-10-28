@@ -53,6 +53,7 @@ Oversized rows align to the top. During layout animation, scrolling uses current
 `ScrollToAsync` returns `true` on completion or `false` for rejected requests. A valid replacement request,
 `Reload`, target disappearance, rebind, or disposal cancels the wait. Token cancellation cancels only the wait;
 movement continues. A pre-canceled token prevents starting movement. Call on Unity's main thread.
+If viewport resizing or other geometry changes leave the target outside the viewport at completion, the wait is canceled instead of reporting success.
 
 Choose **UI (Canvas) → Tree Motion → Scroll View** in the Hierarchy context menu to create a configured template.
 Creation supports Undo. Supply your Item/Group prefabs and Adapter separately.

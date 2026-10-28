@@ -130,6 +130,32 @@ namespace TreeMotion.Tests
         }
 
         [Test]
+        [TestCase(90f, true)]
+        [TestCase(20f, false)]
+        public void ScrollToAsync_RechecksVisibilityAfterViewportShrinks(float offset, bool canceled)
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            var pending = _binding.ScrollToAsync(5, duration: 1f, offset: offset);
+            Tick(.5f);
+            Assert.That(pending.IsCompleted, Is.False);
+            Viewport(50f);
+            Tick(.5f);
+            Assert.That(pending.IsCompleted, Is.True);
+            Assert.That(pending.IsCanceled, Is.EqualTo(canceled));
+            if (!canceled)
+            {
+                Assert.That(pending.Result, Is.True);
+                Assert.That(_adapter.Views[5].activeSelf, Is.True);
+            }
+            else
+            {
+                Assert.That(_adapter.Views.ContainsKey(5) && _adapter.Views[5].activeSelf, Is.False);
+            }
+        }
+
+        [Test]
         public void ScrollToAsync_JumpAndRejectionCompleteImmediately()
         {
             Load(new TreeNodeRecord<int, string>(1, "One"));

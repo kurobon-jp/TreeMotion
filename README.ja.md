@@ -52,6 +52,7 @@ bool reached = await binding.ScrollToAsync(key, duration: 0.4f, cancellationToke
 
 `ScrollToAsync` は移動完了で `true`、無効な要求で `false` を返します。有効な再指定、`Reload`、対象の非表示化・削除、再Bind、破棄で待機がキャンセルされます。
 `CancellationToken` は待機だけをキャンセルし、移動は続きます。キャンセル済みのトークンでは移動を開始しません。Unityのメインスレッドから呼び出してください。
+Viewportの縮小などで移動完了時に対象が画面外になった場合も、成功を返さず待機をキャンセルします。
 
 Hierarchyの **UI (Canvas) → Tree Motion → Scroll View** から、参照設定済みのテンプレートを作成できます。
 Item／GroupのPrefabとAdapterは別途用意します。

@@ -78,7 +78,8 @@ namespace TreeMotion
             => _driver.ScrollTo(id, duration, alignment, offset);
 
         /// <summary>Waits until scrolling completes, or returns false if the request is rejected.
-        /// A valid later ScrollTo/ScrollToAsync, Reload, target disappearance or disposal cancels the wait.
+        /// A valid later ScrollTo/ScrollToAsync, Reload, target disappearance, an invisible final destination
+        /// or disposal cancels the wait.
         /// Token cancellation cancels only the wait; scrolling continues. Call on Unity's main thread.</summary>
         public Task<bool> ScrollToAsync(TId id, float duration = 0f, float alignment = 0f, float offset = 0f,
             CancellationToken cancellationToken = default)
@@ -469,11 +470,9 @@ namespace TreeMotion
                 ThrowIfDisposed();
                 ValidateScrollArguments(duration, alignment, offset);
                 RefreshWidth();
-                if (!_targets.Contains(id) || !_vertical.TryGetValue(id, out var row)) return false;
+                if (!_targets.Contains(id)) return false;
                 var destination = GetScrollDestination(id, alignment, offset);
-                var viewportHeight = Mathf.Max(0f, _host._viewport.rect.height);
-                if (viewportHeight <= 0f || row.Size <= 0f || row.Offset + row.Size <= destination ||
-                    row.Offset >= destination + viewportHeight) return false;
+                if (!IntersectsViewport(id, destination)) return false;
 
                 CancelScrollCompletion();
                 _scrolling = duration > 0f;
@@ -533,6 +532,13 @@ namespace TreeMotion
                 return Mathf.Clamp(top, 0f, Mathf.Max(0f, _host._content.rect.height - viewportHeight));
             }
 
+            private bool IntersectsViewport(TId id, float top)
+            {
+                var height = Mathf.Max(0f, _host._viewport.rect.height);
+                return height > 0f && _vertical.TryGetValue(id, out var row) && row.Size > 0f &&
+                       row.Offset + row.Size > top && row.Offset < top + height;
+            }
+
             private void SetScrollPosition(float top)
             {
                 var position = _host._content.anchoredPosition;
@@ -559,6 +565,11 @@ namespace TreeMotion
                 if (progress >= 1f)
                 {
                     _scrolling = false;
+                    if (!IntersectsViewport(_scrollTarget, _host._content.anchoredPosition.y))
+                    {
+                        CancelScrollCompletion();
+                        return;
+                    }
                     var completion = _scrollCompletion;
                     _scrollCompletion = null;
                     completion?.TrySetResult(true);
