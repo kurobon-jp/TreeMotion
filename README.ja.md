@@ -39,6 +39,7 @@ binding.ScrollTo(key, duration: 0.4f); // スムース移動（秒）
 binding.ScrollTo(key, alignment: 0f); // 上端
 binding.ScrollTo(key, alignment: 0.5f, duration: 0.25f); // 中央へスムース移動
 binding.ScrollTo(key, alignment: 1f, offset: -16f); // 下端から16だけ内側
+bool reached = await binding.ScrollToAsync(key, duration: 0.4f, cancellationToken: token);
 ```
 
 `alignment` のデフォルトは `0f`（上端）です。すでに表示範囲内でも指定位置に揃えます。
@@ -48,6 +49,9 @@ binding.ScrollTo(key, alignment: 1f, offset: -16f); // 下端から16だけ内�
 再指定すると現在位置から移動し、`duration: 0f` は即ジャンプになります。
 表示範囲より大きい行は上端へ揃えます。レイアウトアニメーション中は現在の行位置を使います。
 `Reload` はスムース移動を中止します。`IsAnimating` と `ApplyAsync` はレイアウトアニメーションのみを対象とします。
+
+`ScrollToAsync` は移動完了で `true`、無効な要求で `false` を返します。有効な再指定、`Reload`、対象の非表示化・削除、再Bind、破棄で待機がキャンセルされます。
+`CancellationToken` は待機だけをキャンセルし、移動は続きます。キャンセル済みのトークンでは移動を開始しません。Unityのメインスレッドから呼び出してください。
 
 Hierarchyの **UI (Canvas) → Tree Motion → Scroll View** から、参照設定済みのテンプレートを作成できます。
 Item／GroupのPrefabとAdapterは別途用意します。

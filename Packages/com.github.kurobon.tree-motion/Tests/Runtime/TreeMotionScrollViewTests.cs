@@ -116,6 +116,86 @@ namespace TreeMotion.Tests
         private void Viewport(float height) => _scrollRect.viewport.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
 
         [Test]
+        public void ScrollToAsync_CompletesAfterFinalPositionIsApplied()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            var task = _binding.ScrollToAsync(3, duration: 1f);
+            Tick(.5f);
+            Assert.That(task.IsCompleted, Is.False);
+            Tick(.5f);
+            Assert.That(task.Result, Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+            Assert.That(_adapter.Views[3].activeSelf, Is.True);
+        }
+
+        [Test]
+        public void ScrollToAsync_JumpAndRejectionCompleteImmediately()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"));
+            Assert.That(_binding.ScrollToAsync(1).Result, Is.True);
+            Assert.That(_binding.ScrollToAsync(999, duration: 1f).Result, Is.False);
+        }
+
+        [TestCase("ScrollTo")]
+        [TestCase("ScrollToAsync")]
+        [TestCase("Reload")]
+        [TestCase("Rebind")]
+        [TestCase("Dispose")]
+        [TestCase("Remove")]
+        public void ScrollToAsync_InterruptedWaitIsCanceled(string operation)
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            var pending = _binding.ScrollToAsync(3, duration: 1f);
+            switch (operation)
+            {
+                case "ScrollTo": _binding.ScrollTo(1); break;
+                case "ScrollToAsync": _binding.ScrollToAsync(1); break;
+                case "Reload": _binding.Reload(); break;
+                case "Rebind": _scrollView.Bind(_tree, _adapter); break;
+                case "Dispose": _scrollView.OnDestroy(); break;
+                case "Remove":
+                    _binding.Apply(_tree.BeginUpdate().Remove(3).Commit(), duration: 0f);
+                    Tick(.1f);
+                    break;
+            }
+            Assert.That(pending.IsCanceled, Is.True);
+        }
+
+        [Test]
+        public void ScrollToAsync_RejectedRequestPreservesPendingWait()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            var pending = _binding.ScrollToAsync(3, duration: 1f);
+            Assert.That(_binding.ScrollToAsync(999).Result, Is.False);
+            Assert.That(pending.IsCompleted, Is.False);
+            Tick(1f);
+            Assert.That(pending.Result, Is.True);
+        }
+
+        [Test]
+        public async Task ScrollToAsync_TokenCancelsOnlyWaitAndPreCanceledTokenDoesNotStartMovement()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            using (var cancellation = new CancellationTokenSource())
+            {
+                var pending = _binding.ScrollToAsync(3, duration: 1f, cancellationToken: cancellation.Token);
+                cancellation.Cancel();
+                try { await pending; Assert.Fail("Expected cancellation."); }
+                catch (OperationCanceledException) { }
+                Tick(1f);
+                Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+                var canceled = _binding.ScrollToAsync(1, duration: 1f, cancellationToken: cancellation.Token);
+                Assert.That(canceled.IsCanceled, Is.True);
+                Tick(1f);
+                Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+            }
+        }
+
+        [Test]
         public void ScrollTo_JumpsAndMaterializesOffscreenRow()
         {
             Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),

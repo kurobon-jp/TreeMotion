@@ -39,6 +39,7 @@ binding.ScrollTo(key, duration: 0.4f); // Smooth movement in seconds
 binding.ScrollTo(key, alignment: 0f); // Top
 binding.ScrollTo(key, alignment: 0.5f, duration: 0.25f); // Smoothly align to center
 binding.ScrollTo(key, alignment: 1f, offset: -16f); // 16 units above the bottom
+bool reached = await binding.ScrollToAsync(key, duration: 0.4f, cancellationToken: token);
 ```
 
 Alignment defaults to `0f` (top), even for rows already in view. Alignment positions the row within the viewport
@@ -48,6 +49,10 @@ Offsets that leave the target outside the viewport also return `false`, preservi
 Retargeting starts from the current position; zero duration jumps immediately.
 Oversized rows align to the top. During layout animation, scrolling uses current row geometry.
 `Reload` cancels smooth scrolling. `IsAnimating` and `ApplyAsync` cover only layout animation.
+
+`ScrollToAsync` returns `true` on completion or `false` for rejected requests. A valid replacement request,
+`Reload`, target disappearance, rebind, or disposal cancels the wait. Token cancellation cancels only the wait;
+movement continues. A pre-canceled token prevents starting movement. Call on Unity's main thread.
 
 Choose **UI (Canvas) → Tree Motion → Scroll View** in the Hierarchy context menu to create a configured template.
 Creation supports Undo. Supply your Item/Group prefabs and Adapter separately.
