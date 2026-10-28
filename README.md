@@ -31,6 +31,30 @@ https://github.com/kurobon-jp/TreeMotion.git?path=Packages/com.github.kurobon.tr
 
 ## Set up a ScrollView
 
+Scroll a row into view by its key (ID):
+
+```csharp
+binding.ScrollTo(key); // Immediate jump
+binding.ScrollTo(key, duration: 0.4f); // Smooth movement in seconds
+binding.ScrollTo(key, alignment: 0f); // Top
+binding.ScrollTo(key, alignment: 0.5f, duration: 0.25f); // Smoothly align to center
+binding.ScrollTo(key, alignment: 1f, offset: -16f); // 16 units above the bottom
+bool reached = await binding.ScrollToAsync(key, duration: 0.4f, cancellationToken: token);
+```
+
+Alignment defaults to `0f` (top), even for rows already in view. Alignment positions the row within the viewport
+(0 = top, 0.5 = center, 1 = bottom). Positive offset moves the row down. Content bounds limit scrolling.
+Missing IDs and rows beneath collapsed ancestors return `false`.
+Offsets that leave the target outside the viewport also return `false`, preserving any active scroll.
+Retargeting starts from the current position; zero duration jumps immediately.
+Oversized rows align to the top. During layout animation, scrolling uses current row geometry.
+`Reload` cancels smooth scrolling. `IsAnimating` and `ApplyAsync` cover only layout animation.
+
+`ScrollToAsync` returns `true` on completion or `false` for rejected requests. A valid replacement request,
+`Reload`, target disappearance, rebind, or disposal cancels the wait. Token cancellation cancels only the wait;
+movement continues. A pre-canceled token prevents starting movement. Call on Unity's main thread.
+If viewport resizing or other geometry changes leave the target outside the viewport at completion, the wait is canceled instead of reporting success.
+
 Choose **UI (Canvas) → Tree Motion → Scroll View** in the Hierarchy context menu to create a configured template.
 Creation supports Undo. Supply your Item/Group prefabs and Adapter separately.
 
