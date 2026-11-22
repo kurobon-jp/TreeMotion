@@ -67,6 +67,23 @@ namespace TreeMotion
 
         public void Refresh(TId id) => _driver.Refresh(id);
         public void Refresh(params TId[] ids) => _driver.Refresh(ids);
+
+        /// <summary>Scrolls a visible row into the viewport. Zero duration jumps immediately;
+        /// positive duration scrolls smoothly in seconds. Aligns to the top by default.
+        /// Returns false for missing or collapsed rows, or if the destination leaves the row outside the viewport.
+        /// Alignment: 0 = top, 0.5 = center, 1 = bottom, including oversized rows.
+        /// Positive offset places the aligned row further down the viewport. Clamps to content bounds.
+        /// During layout animation, uses the row's current geometry. Call on Unity's main thread.</summary>
+        public bool ScrollTo(TId id, float duration = 0f, float alignment = 0f, float offset = 0f)
+            => _driver.ScrollTo(id, duration, alignment, offset);
+
+        /// <summary>Waits until scrolling completes, or returns false if the request is rejected.
+        /// A valid later ScrollTo/ScrollToAsync, Reload, target disappearance, an invisible final destination
+        /// or disposal cancels the wait.
+        /// Token cancellation cancels only the wait; scrolling continues. Call on Unity's main thread.</summary>
+        public Task<bool> ScrollToAsync(TId id, float duration = 0f, float alignment = 0f, float offset = 0f,
+            CancellationToken cancellationToken = default)
+            => _driver.ScrollToAsync(id, duration, alignment, offset, cancellationToken);
     }
 
     internal interface ITreeMotionDriver
@@ -83,6 +100,8 @@ namespace TreeMotion
         Task ApplyAsync(TreeChangeSet<TId> changes, float? duration, CancellationToken cancellationToken);
         void Refresh(TId id);
         void Refresh(params TId[] ids);
+        bool ScrollTo(TId id, float duration, float alignment, float offset);
+        Task<bool> ScrollToAsync(TId id, float duration, float alignment, float offset, CancellationToken cancellationToken);
     }
 
     /// <summary>Stable-ID virtualization with per-prefab pools and whole Group prefabs.</summary>
@@ -239,7 +258,13 @@ namespace TreeMotion
             private float _heightFrom, _heightTo;
             private float _layoutWidth;
             private bool _disposed;
+            private bool _scrolling;
+            private TId _scrollTarget;
+            private float _scrollFrom, _scrollElapsed, _scrollDuration;
+            private float _scrollAlignment;
+            private float _scrollOffset;
             private TaskCompletionSource<bool> _completion;
+            private TaskCompletionSource<bool> _scrollCompletion;
 
             internal Driver(TreeMotionScrollView host, TreeStore<TId, TItem> tree,
                 ITreeMotionAdapter<TId, TItem> adapter)
@@ -301,6 +326,8 @@ namespace TreeMotion
                 ThrowIfDisposed();
                 ValidateData();
                 CancelCompletion();
+                _scrolling = false;
+                CancelScrollCompletion();
                 _byId.Clear();
                 _dirty.Clear();
                 _foregroundRoots.Clear();
@@ -438,6 +465,117 @@ namespace TreeMotion
                 RefreshVisibleViews();
             }
 
+            public bool ScrollTo(TId id, float duration, float alignment, float offset)
+            {
+                ThrowIfDisposed();
+                ValidateScrollArguments(duration, alignment, offset);
+                RefreshWidth();
+                if (!_targets.Contains(id)) return false;
+                var destination = GetScrollDestination(id, alignment, offset);
+                if (!IntersectsViewport(id, destination)) return false;
+
+                CancelScrollCompletion();
+                _scrolling = duration > 0f;
+                _scrollTarget = id;
+                _scrollFrom = _host._content.anchoredPosition.y;
+                _scrollElapsed = 0f;
+                _scrollDuration = duration;
+                _scrollAlignment = alignment;
+                _scrollOffset = offset;
+                _host._scrollRect.StopMovement();
+                if (!_scrolling) SetScrollPosition(destination);
+                return true;
+            }
+
+            private static void ValidateScrollArguments(float duration, float alignment, float offset)
+            {
+                ValidateNumber(duration, "ScrollDuration");
+                if (float.IsNaN(alignment) || alignment < 0f || alignment > 1f)
+                    throw new ArgumentOutOfRangeException(nameof(alignment), "Alignment must be between 0 and 1.");
+                if (float.IsNaN(offset) || float.IsInfinity(offset))
+                    throw new ArgumentOutOfRangeException(nameof(offset));
+            }
+
+            public Task<bool> ScrollToAsync(TId id, float duration, float alignment, float offset,
+                CancellationToken cancellationToken)
+            {
+                ThrowIfDisposed();
+                ValidateScrollArguments(duration, alignment, offset);
+                if (cancellationToken.IsCancellationRequested) return Task.FromCanceled<bool>(cancellationToken);
+                if (!ScrollTo(id, duration, alignment, offset)) return Task.FromResult(false);
+                if (!_scrolling) return Task.FromResult(true);
+                _scrollCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                return cancellationToken.CanBeCanceled
+                    ? WaitForScrollCompletion(_scrollCompletion, cancellationToken)
+                    : _scrollCompletion.Task;
+            }
+
+            private static async Task<bool> WaitForScrollCompletion(TaskCompletionSource<bool> completion,
+                CancellationToken token)
+            {
+                using (token.Register(() => completion.TrySetCanceled(token)))
+                    return await completion.Task.ConfigureAwait(false);
+            }
+
+            private void CancelScrollCompletion()
+            {
+                var completion = _scrollCompletion;
+                _scrollCompletion = null;
+                completion?.TrySetCanceled();
+            }
+
+            private float GetScrollDestination(TId id, float alignment, float offset)
+            {
+                _vertical.TryGetValue(id, out var row);
+                var viewportHeight = Mathf.Max(0f, _host._viewport.rect.height);
+                var top = row.Offset - (viewportHeight - row.Size) * alignment - offset;
+                return Mathf.Clamp(top, 0f, Mathf.Max(0f, _host._content.rect.height - viewportHeight));
+            }
+
+            private bool IntersectsViewport(TId id, float top)
+            {
+                var height = Mathf.Max(0f, _host._viewport.rect.height);
+                return height > 0f && _vertical.TryGetValue(id, out var row) && row.Size > 0f &&
+                       row.Offset + row.Size > top && row.Offset < top + height;
+            }
+
+            private void SetScrollPosition(float top)
+            {
+                var position = _host._content.anchoredPosition;
+                position.y = top;
+                _host._scrollRect.StopMovement();
+                _host._content.anchoredPosition = position;
+                RefreshVisibleViews();
+            }
+
+            private void TickScroll(float deltaTime)
+            {
+                if (!_scrolling) return;
+                if (!_targets.Contains(_scrollTarget))
+                {
+                    _scrolling = false;
+                    CancelScrollCompletion();
+                    return;
+                }
+                _scrollElapsed += Mathf.Max(0f, deltaTime);
+                var progress = Mathf.Clamp01(_scrollElapsed / _scrollDuration);
+                var eased = progress * progress * (3f - 2f * progress);
+                SetScrollPosition(Mathf.LerpUnclamped(_scrollFrom,
+                    GetScrollDestination(_scrollTarget, _scrollAlignment, _scrollOffset), eased));
+                if (progress >= 1f)
+                {
+                    _scrolling = false;
+                    if (!IntersectsViewport(_scrollTarget, _host._content.anchoredPosition.y))
+                    {
+                        CancelScrollCompletion();
+                        return;
+                    }
+                    var completion = _scrollCompletion;
+                    _scrollCompletion = null;
+                    completion?.TrySetResult(true);
+                }
+            }
+
             private void BuildLayout()
             {
                 _layoutWidth = _host._content.rect.width;
@@ -539,7 +677,11 @@ namespace TreeMotion
             {
                 if (_disposed) return;
                 RefreshWidth();
-                if (!IsAnimating) return;
+                if (!IsAnimating)
+                {
+                    TickScroll(deltaTime);
+                    return;
+                }
                 _vertical.Advance(deltaTime);
                 _horizontal.Advance(deltaTime);
                 var p = _vertical.Progress;
@@ -548,6 +690,7 @@ namespace TreeMotion
                 RefreshVisibleViews();
                 if (!IsAnimating)
                     CompleteTransition();
+                TickScroll(deltaTime);
             }
 
             private void CompleteTransition()
@@ -782,6 +925,7 @@ namespace TreeMotion
                 if (_disposed) return;
                 _disposed = true;
                 CancelCompletion();
+                CancelScrollCompletion();
                 if (_host != null && _host._scrollRect != null)
                     _host._scrollRect.onValueChanged.RemoveListener(OnScroll);
                 foreach (var view in _all)

@@ -116,6 +116,216 @@ namespace TreeMotion.Tests
         private void Viewport(float height) => _scrollRect.viewport.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
 
         [Test]
+        public void ScrollToAsync_CompletesAfterFinalPositionIsApplied()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            var task = _binding.ScrollToAsync(3, duration: 1f);
+            Tick(.5f);
+            Assert.That(task.IsCompleted, Is.False);
+            Tick(.5f);
+            Assert.That(task.Result, Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+            Assert.That(_adapter.Views[3].activeSelf, Is.True);
+        }
+
+        [Test]
+        [TestCase(90f, true)]
+        [TestCase(20f, false)]
+        public void ScrollToAsync_RechecksVisibilityAfterViewportShrinks(float offset, bool canceled)
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            var pending = _binding.ScrollToAsync(5, duration: 1f, offset: offset);
+            Tick(.5f);
+            Assert.That(pending.IsCompleted, Is.False);
+            Viewport(50f);
+            Tick(.5f);
+            Assert.That(pending.IsCompleted, Is.True);
+            Assert.That(pending.IsCanceled, Is.EqualTo(canceled));
+            if (!canceled)
+            {
+                Assert.That(pending.Result, Is.True);
+                Assert.That(_adapter.Views[5].activeSelf, Is.True);
+            }
+            else
+            {
+                Assert.That(_adapter.Views.ContainsKey(5) && _adapter.Views[5].activeSelf, Is.False);
+            }
+        }
+
+        [Test]
+        public void ScrollToAsync_JumpAndRejectionCompleteImmediately()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"));
+            Assert.That(_binding.ScrollToAsync(1).Result, Is.True);
+            Assert.That(_binding.ScrollToAsync(999, duration: 1f).Result, Is.False);
+        }
+
+        [TestCase("ScrollTo")]
+        [TestCase("ScrollToAsync")]
+        [TestCase("Reload")]
+        [TestCase("Rebind")]
+        [TestCase("Dispose")]
+        [TestCase("Remove")]
+        public void ScrollToAsync_InterruptedWaitIsCanceled(string operation)
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            var pending = _binding.ScrollToAsync(3, duration: 1f);
+            switch (operation)
+            {
+                case "ScrollTo": _binding.ScrollTo(1); break;
+                case "ScrollToAsync": _binding.ScrollToAsync(1); break;
+                case "Reload": _binding.Reload(); break;
+                case "Rebind": _scrollView.Bind(_tree, _adapter); break;
+                case "Dispose": _scrollView.OnDestroy(); break;
+                case "Remove":
+                    _binding.Apply(_tree.BeginUpdate().Remove(3).Commit(), duration: 0f);
+                    Tick(.1f);
+                    break;
+            }
+            Assert.That(pending.IsCanceled, Is.True);
+        }
+
+        [Test]
+        public void ScrollToAsync_RejectedRequestPreservesPendingWait()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            var pending = _binding.ScrollToAsync(3, duration: 1f);
+            Assert.That(_binding.ScrollToAsync(999).Result, Is.False);
+            Assert.That(pending.IsCompleted, Is.False);
+            Tick(1f);
+            Assert.That(pending.Result, Is.True);
+        }
+
+        [Test]
+        public async Task ScrollToAsync_TokenCancelsOnlyWaitAndPreCanceledTokenDoesNotStartMovement()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            using (var cancellation = new CancellationTokenSource())
+            {
+                var pending = _binding.ScrollToAsync(3, duration: 1f, cancellationToken: cancellation.Token);
+                cancellation.Cancel();
+                try { await pending; Assert.Fail("Expected cancellation."); }
+                catch (OperationCanceledException) { }
+                Tick(1f);
+                Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+                var canceled = _binding.ScrollToAsync(1, duration: 1f, cancellationToken: cancellation.Token);
+                Assert.That(canceled.IsCanceled, Is.True);
+                Tick(1f);
+                Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+            }
+        }
+
+        [Test]
+        public void ScrollTo_JumpsAndMaterializesOffscreenRow()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            _scrollRect.velocity = new Vector2(0f, 100f);
+            Assert.That(_binding.ScrollTo(3), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+            Assert.That(_adapter.Views[3].activeSelf, Is.True);
+            Assert.That(_scrollRect.velocity, Is.EqualTo(Vector2.zero));
+            Assert.That(_binding.ScrollTo(1), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(12f).Within(.01f));
+        }
+
+        [Test]
+        public void ScrollTo_SmoothInterpolatesAndCanBeRetargetedOrReplacedByJump()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            Assert.That(_binding.ScrollTo(3, duration: 1f), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.Zero);
+            Tick(.5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(45f).Within(.01f));
+            _binding.ScrollTo(1, duration: 1f);
+            Tick(.5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(28.5f).Within(.01f));
+            _binding.ScrollTo(3);
+            Tick(1f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(90f).Within(.01f));
+        }
+
+        [Test]
+        public void ScrollTo_DefaultAlignsAlreadyVisibleRowToTop()
+        {
+            Load(new TreeNodeRecord<int, string>(1, "One"), new TreeNodeRecord<int, string>(2, "Two"),
+                new TreeNodeRecord<int, string>(3, "Three"));
+            Assert.That(_adapter.Views[1].activeSelf, Is.True);
+            Assert.That(_binding.ScrollTo(1), Is.True);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(12f).Within(.01f));
+        }
+
+        [Test]
+        public void ScrollTo_AlignsRowAndAppliesOffset()
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            _binding.ScrollTo(5, alignment: 0f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(244f).Within(.01f));
+            _binding.ScrollTo(5, alignment: .5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(219f).Within(.01f));
+            _binding.ScrollTo(5, alignment: 1f, offset: 10f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(184f).Within(.01f));
+            _binding.ScrollTo(5, alignment: 0f, duration: 1f);
+            Tick(1f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(244f).Within(.01f));
+            _binding.ScrollTo(10, alignment: 0f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(496f).Within(.01f));
+            Assert.Throws<ArgumentOutOfRangeException>(() => _binding.ScrollTo(5, alignment: 2f));
+        }
+
+        [Test]
+        [TestCase(200f, 0f)]
+        [TestCase(-200f, 0f)]
+        [TestCase(200f, 1f)]
+        [TestCase(-200f, 1f)]
+        [TestCase(100f, 0f)]
+        [TestCase(-50f, 0f)]
+        public void ScrollTo_RejectsOffsetLeavingTargetOutsideViewport(float offset, float duration)
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            Assert.That(_binding.ScrollTo(5, duration: duration, offset: offset), Is.False);
+            Tick(1f);
+            Assert.That(_content.anchoredPosition.y, Is.Zero);
+            Assert.That(_adapter.Views.ContainsKey(5), Is.False);
+        }
+
+        [Test]
+        public void ScrollTo_RejectedOffsetPreservesActiveScroll()
+        {
+            var records = new List<TreeNodeRecord<int, string>>();
+            for (var id = 1; id <= 10; id++) records.Add(new TreeNodeRecord<int, string>(id, "Item"));
+            Load(records.ToArray());
+            Assert.That(_binding.ScrollTo(5, duration: 1f), Is.True);
+            Tick(.5f);
+            Assert.That(_binding.ScrollTo(6, offset: 200f), Is.False);
+            Tick(.5f);
+            Assert.That(_content.anchoredPosition.y, Is.EqualTo(244f).Within(.01f));
+            Assert.That(_adapter.Views[5].activeSelf, Is.True);
+        }
+
+        [Test]
+        public void ScrollTo_RejectsMissingAndCollapsedRows()
+        {
+            _adapter.Groups.Add(1);
+            Load(new TreeNodeRecord<int, string>(1, "Group"), new TreeNodeRecord<int, string>(2, "Child", parentId: 1));
+            Assert.That(_binding.ScrollTo(2), Is.False);
+            Assert.That(_binding.ScrollTo(999, duration: 0.25f), Is.False);
+            Assert.That(_content.anchoredPosition.y, Is.Zero);
+            Assert.Throws<InvalidOperationException>(() => _binding.ScrollTo(1, duration: float.NaN));
+        }
+
+        [Test]
         public void Reload_PreservesViewsByIdAndRebindsAfterSnapshotReorder()
         {
             Viewport(500f);
